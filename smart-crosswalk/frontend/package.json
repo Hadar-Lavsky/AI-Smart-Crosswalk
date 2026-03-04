@@ -1,0 +1,27 @@
+{
+  "name": "smart-crosswalk-frontend",
+  "version": "1.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "node node_modules/vite/bin/vite.js",
+    "start": "node node_modules/vite/bin/vite.js",
+    "build": "node node_modules/vite/bin/vite.js build",
+    "preview": "node node_modules/vite/bin/vite.js preview"
+  },
+  "dependencies": {
+    "@tanstack/react-query": "^5.90.21",
+    "@tanstack/react-query-devtools": "^5.91.3",
+    "axios": "^1.6.0",
+    "clsx": "^2.0.0",
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0",
+    "react-router-dom": "^6.20.0"
+  },
+  "devDependencies": {
+    "@tailwindcss/vite": "^4.2.1",
+    "@tanstack/eslint-plugin-query": "^5.91.4",
+    "@vitejs/plugin-react": "^4.2.0",
+    "tailwindcss": "^4.2.1",
+    "vite": "^5.0.0"
+  }
+}

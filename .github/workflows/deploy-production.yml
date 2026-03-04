@@ -1,0 +1,37 @@
+name: Deploy to Production
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: smart-crosswalk/backend/package-lock.json
+
+      - name: Build Frontend
+        run: |
+          cd smart-crosswalk/frontend
+          npm ci
+          npm run build
+        env:
+          VITE_API_URL: ${{ secrets.VITE_API_URL || '/api' }}
+
+      - name: Deploy Backend (Render)
+        if: ${{ secrets.RENDER_BACKEND_DEPLOY_HOOK != '' }}
+        run: curl -X POST "${{ secrets.RENDER_BACKEND_DEPLOY_HOOK }}"
+
+      - name: Deploy Frontend (Render)
+        if: ${{ secrets.RENDER_FRONTEND_DEPLOY_HOOK != '' }}
+        run: curl -X POST "${{ secrets.RENDER_FRONTEND_DEPLOY_HOOK }}"
