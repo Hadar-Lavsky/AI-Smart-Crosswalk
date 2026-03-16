@@ -1,10 +1,9 @@
 import { Card, Button } from '../ui';
 import { GenericDetailCard } from './GenericDetailCard';
-import { CrosswalkCard } from '../crosswalks/CrosswalkCard';
-import { AlertCard } from '../alerts/AlertCard';
-import { AlertHistoryCard } from '../alerts/AlertHistoryCard';
-import { CameraRow } from '../cameras/CameraRow';
-import { LEDRow } from '../leds/LEDRow';
+import { CrosswalkCard } from '../../features/crosswalks';
+import { AlertCard, AlertHistoryCard } from '../../features/alerts';
+import { CameraRow } from '../../features/cameras';
+import { LEDRow } from '../../features/leds';
 
 // ─── Registry ─────────────────────────────────────────────────────────────────
 // Maps type → { component, layout, columns? }

@@ -1,5 +1,5 @@
 import { useParams, useNavigate } from 'react-router-dom';
-import { useCrosswalkDetails } from '../hooks';
+import { useCrosswalkDetails, CrosswalkDetailCard } from '../features/crosswalks';
 import {
   Card,
   CardHeader,
@@ -15,7 +15,6 @@ import {
 import { StatsGrid } from '../components/common/StatsGrid';
 import { GenericList } from '../components/common/GenericList';
 import { GenericDetailCard } from '../components/common/GenericDetailCard';
-import { CrosswalkDetailCard } from '../components/crosswalks';
 
 /**
  * CrosswalkDetailsPage — detail view for a single crosswalk.

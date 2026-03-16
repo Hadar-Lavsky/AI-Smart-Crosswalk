@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState } from "react";
 import {
   PageHeader,
   Card,
@@ -8,21 +8,17 @@ import {
   Button,
   StatusIndicator,
   ConfirmDialog,
-} from '../components/ui';
-import { useToast } from '../components/ui';
-import { StatsGrid } from '../components/common/StatsGrid';
-import { GenericDetailCard } from '../components/common/GenericDetailCard';
-import { GenericList } from '../components/common/GenericList';
-import { CameraDialog } from '../components/cameras';
-import { LEDDialog } from '../components/leds';
-import {
-  useAlertStats,
-  useCrosswalkStats,
-  useCameraList,
-  useCameraMutations,
-  useLEDList,
-  useLEDMutations,
-} from '../hooks';
+} from "../components/ui";
+import { useToast } from "../components/ui";
+import { StatsGrid } from "../components/common/StatsGrid";
+import { GenericDetailCard } from "../components/common/GenericDetailCard";
+import { GenericList } from "../components/common/GenericList";
+import { CameraDialog } from "../features/cameras";
+import { LEDDialog } from "../features/leds";
+import { useAlertStats } from "../features/alerts";
+import { useCrosswalkStats } from "../features/crosswalks";
+import { useCameraList, useCameraMutations } from "../features/cameras";
+import { useLEDList, useLEDMutations } from "../features/leds";
 
 /**
  * Dashboard — top-level overview page.
@@ -33,12 +29,14 @@ import {
  *
  * Route: `/`
  */
+
 export function Dashboard() {
   const { stats: alertStats } = useAlertStats();
   const { stats: crosswalkStats } = useCrosswalkStats();
 
   const { cameras } = useCameraList();
-  const { createCamera, updateCameraStatus, deleteCamera } = useCameraMutations();
+  const { createCamera, updateCameraStatus, deleteCamera } =
+    useCameraMutations();
   const { leds } = useLEDList();
   const { createLED, deleteLED } = useLEDMutations();
 
@@ -61,14 +59,14 @@ export function Dashboard() {
     try {
       if (cameraForm.item) {
         await updateCameraStatus(cameraForm.item._id, formData.status);
-        addToast('Camera updated successfully', 'success');
+        addToast("Camera updated successfully", "success");
       } else {
         await createCamera(formData);
-        addToast('Camera created successfully', 'success');
+        addToast("Camera created successfully", "success");
       }
       closeCameraForm();
     } catch (err) {
-      addToast(err.message || 'Error saving camera', 'error');
+      addToast(err.message || "Error saving camera", "error");
     } finally {
       setCameraSubmitting(false);
     }
@@ -78,10 +76,10 @@ export function Dashboard() {
     setCameraSubmitting(true);
     try {
       await deleteCamera(cameraDelete.item._id);
-      addToast('Camera deleted successfully', 'success');
+      addToast("Camera deleted successfully", "success");
       closeCameraDelete();
     } catch (err) {
-      addToast(err.message || 'Error deleting camera', 'error');
+      addToast(err.message || "Error deleting camera", "error");
     } finally {
       setCameraSubmitting(false);
     }
@@ -101,10 +99,10 @@ export function Dashboard() {
     setLEDSubmitting(true);
     try {
       await createLED(formData);
-      addToast('LED created successfully', 'success');
+      addToast("LED created successfully", "success");
       closeLEDForm();
     } catch (err) {
-      addToast(err.message || 'Error saving LED', 'error');
+      addToast(err.message || "Error saving LED", "error");
     } finally {
       setLEDSubmitting(false);
     }
@@ -114,10 +112,10 @@ export function Dashboard() {
     setLEDSubmitting(true);
     try {
       await deleteLED(ledDelete.item._id);
-      addToast('LED deleted successfully', 'success');
+      addToast("LED deleted successfully", "success");
       closeLEDDelete();
     } catch (err) {
-      addToast(err.message || 'Error deleting LED', 'error');
+      addToast(err.message || "Error deleting LED", "error");
     } finally {
       setLEDSubmitting(false);
     }
@@ -132,18 +130,41 @@ export function Dashboard() {
 
       <StatsGrid
         stats={[
-          { title: 'Total Alerts', value: alertStats.total, icon: '📋', color: 'primary' },
-          { title: 'Total Crosswalks', value: crosswalkStats.total, icon: '🚦', color: 'success' },
+          {
+            title: "Total Alerts",
+            value: alertStats.total,
+            icon: "📋",
+            color: "primary",
+          },
+          {
+            title: "Total Crosswalks",
+            value: crosswalkStats.total,
+            icon: "🚦",
+            color: "success",
+          },
         ]}
       />
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <GenericDetailCard
-          header={{ icon: '🖥', title: 'System Status' }}
+          header={{ icon: "🖥", title: "System Status" }}
           fields={[
-            { label: 'API Server', component: <StatusIndicator status="online" label="Online" /> },
-            { label: 'Database', component: <StatusIndicator status="connected" label="Connected" /> },
-            { label: 'YOLO Detection', component: <StatusIndicator status="connected" label="Connected" /> },
+            {
+              label: "API Server",
+              component: <StatusIndicator status="online" label="Online" />,
+            },
+            {
+              label: "Database",
+              component: (
+                <StatusIndicator status="connected" label="Connected" />
+              ),
+            },
+            {
+              label: "YOLO Detection",
+              component: (
+                <StatusIndicator status="connected" label="Connected" />
+              ),
+            },
           ]}
         />
 
@@ -176,7 +197,7 @@ export function Dashboard() {
               >
                 <span className="text-2xl">📋</span>
                 <span className="text-sm text-surface-600">
-                  {showDevices ? 'Hide Devices' : 'Manage Devices'}
+                  {showDevices ? "Hide Devices" : "Manage Devices"}
                 </span>
               </Button>
             </div>
@@ -189,7 +210,9 @@ export function Dashboard() {
           {/* Cameras */}
           <div className="space-y-4">
             <div className="flex items-center justify-between">
-              <h3 className="text-lg font-semibold text-surface-900">📷 Cameras</h3>
+              <h3 className="text-lg font-semibold text-surface-900">
+                📷 Cameras
+              </h3>
               <Button variant="primary" size="sm" onClick={handleCameraCreate}>
                 ➕ Add Camera
               </Button>
@@ -208,7 +231,9 @@ export function Dashboard() {
           {/* LEDs */}
           <div className="space-y-4">
             <div className="flex items-center justify-between">
-              <h3 className="text-lg font-semibold text-surface-900">💡 LED Systems</h3>
+              <h3 className="text-lg font-semibold text-surface-900">
+                💡 LED Systems
+              </h3>
               <Button variant="primary" size="sm" onClick={handleLEDCreate}>
                 ➕ Add LED
               </Button>

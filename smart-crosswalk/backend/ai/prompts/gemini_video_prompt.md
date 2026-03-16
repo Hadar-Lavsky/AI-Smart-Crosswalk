@@ -167,6 +167,125 @@ Style: Realistic overhead traffic camera footage. Fixed angle, no movement, natu
 
 ---
 
+## Prompt 7 — Phase 1: Distracted Pedestrian Anomaly
+
+> **Best for**: Testing "High-Risk Pedestrian" detection — a person entering the crosswalk without any situational awareness (head down, eyes on phone, no traffic check).
+
+```
+Using the attached image as the reference setting:
+
+Generate a 5-second realistic video from a fixed elevated traffic camera (static, no movement, mounted at 5-6 meters height, angled downward at about 30 degrees) showing this crosswalk anomaly scenario:
+
+Scene sequence:
+1. (0-1 seconds) The scene shows the empty Israeli urban crosswalk from the reference image — white crosswalk stripes, traffic lights, palm trees, apartment buildings. One or two cars are visible in the far lane, moving slowly.
+2. (1-3 seconds) An adult man wearing a dark shirt enters the frame from the LEFT sidewalk. He is looking DOWN at a smartphone in his hand. His head is tilted downward, eyes locked on the phone screen. He walks at a steady pace toward the crosswalk.
+3. (3-5 seconds) The man steps directly onto the crosswalk WITHOUT looking up, without checking left or right for traffic, without any hesitation. He continues walking steadily across, head still down, phone still in hand, reaching approximately the center of the crosswalk by the end of the clip.
+
+Critical details:
+- The man must NEVER look up or turn his head during the entire video. His gaze stays fixed on the phone.
+- His walking pace is steady and uninterrupted — he does not slow down or pause at the curb.
+- The transition from sidewalk to crosswalk should look natural but dangerous — no stopping, no looking.
+
+Setting: Daytime, clear sunny weather, same Israeli urban crosswalk from the reference image.
+
+Style: Realistic traffic camera CCTV footage. Static camera, natural lighting, no effects. Slightly grainy quality.
+```
+
+---
+
+## Prompt 8 — Phase 2: Child Dash Anomaly
+
+> **Best for**: Testing "Sudden Motion Anomaly" detection — detecting the abrupt transition from a stationary child to a full sprint into the road.
+
+```
+Using the attached image as the reference setting:
+
+Generate a 5-second realistic video from a fixed elevated traffic camera (static, no movement, mounted at 5-6 meters height, angled downward at about 30 degrees) showing this crosswalk anomaly scenario:
+
+Scene sequence:
+1. (0-2 seconds) On the RIGHT sidewalk near the crosswalk, a mother and a small child (approximately 6 years old) are standing together. The mother is holding the child's hand. They appear to be waiting at the curb. The child is noticeably shorter and smaller than the mother.
+2. (2-3 seconds) THE SUDDEN EVENT: The child abruptly yanks their hand free from the mother's grip and performs a sudden explosive SPRINT off the curb into the road, running perpendicular to the traffic lanes across the crosswalk. The mother's arm reaches out in alarm as the child breaks away.
+3. (3-5 seconds) The child continues running across the crosswalk at full sprint speed. The mother takes a panicked step forward, arm still extended. The contrast between the child's sudden burst of speed and the mother's shocked reaction should be clearly visible.
+
+Critical details:
+- The child MUST be clearly smaller than the mother — short stature, small frame. This size difference is important.
+- The transition from STANDING STILL to SPRINTING must be sudden and dramatic — not a gradual acceleration.
+- The mother's reaction (reaching out, stepping forward) should show alarm and surprise.
+- The child runs INTO the road, not along the sidewalk.
+
+Setting: Daytime, clear sunny weather, same Israeli urban crosswalk from the reference image — white crosswalk stripes, traffic lights, palm trees, apartment buildings.
+
+Style: Realistic traffic camera CCTV footage. Static camera, natural lighting, no effects.
+```
+
+---
+
+## Prompt 9 — Phase 3: Vehicle Emergency Brake with Oblivious Pedestrian
+
+> **Best for**: Testing multi-actor danger detection — vehicle emergency stop, child in crosswalk, and a contrasting unaware pedestrian all in the same frame.
+
+```
+Using the attached image as the reference setting:
+
+Generate a 6-second realistic video from a fixed elevated traffic camera (static, no movement, mounted at 5-6 meters height, angled downward at about 30 degrees) showing this crosswalk danger scenario:
+
+Scene sequence:
+1. (0-2 seconds) A silver sedan is approaching the crosswalk from the background at moderate speed. Simultaneously, a small child (about 6 years old) is visible in the crosswalk, having just dashed onto it from the right side. On the left portion of the crosswalk, an adult man in a dark shirt walks steadily, looking DOWN at his smartphone.
+2. (2-4 seconds) THE EMERGENCY: The silver sedan performs a HARD emergency brake as the driver sees the child. The front of the car visibly dips downward (nose-dive braking physics). The tires may show slight skid marks or the car lurches forward on its suspension.
+3. (4-6 seconds) The car comes to a complete stop just before the crosswalk. The child is still on the crosswalk. CRITICALLY: the man in the dark shirt continues walking at the EXACT same steady pace, head still down, eyes still on his phone — he is completely unaware of the near-miss happening just meters behind him. This contrast between the emergency and his obliviousness is the key visual.
+
+Critical details:
+- The silver sedan's emergency brake must look realistic — the front dips, the stop is abrupt and dramatic.
+- The distracted man MUST keep walking steadily with his head down the entire time. He does not flinch, look up, or react in any way. His obliviousness is the contrast that makes this scene compelling.
+- The child should appear small and vulnerable compared to the sedan.
+- All three actors (car, child, man) should be visible in the frame simultaneously during the emergency moment.
+
+Setting: Daytime, clear sunny weather, same Israeli urban crosswalk from the reference image.
+
+Style: Realistic traffic camera CCTV footage. Static camera, natural lighting, no artistic effects. The scene should feel tense and real.
+```
+
+---
+
+## Prompt 10 — Full Anomaly Sequence (All 3 Phases Combined)
+
+> **Best for**: Generating the complete 8-second scenario as a single continuous video — covers all anomaly types in one clip for end-to-end pipeline testing.
+
+```
+Using the attached image as the reference setting:
+
+Generate an 8-second realistic video from a fixed elevated traffic camera (static, no movement, mounted at 5-6 meters height, angled downward at about 30 degrees) showing a multi-phase crosswalk anomaly sequence:
+
+PHASE 1 — Distracted Pedestrian (0-4 seconds):
+- An adult man in a dark shirt enters the frame from the LEFT sidewalk. He is looking down at a smartphone in his hand.
+- He walks at a steady pace and steps directly onto the crosswalk WITHOUT looking up or checking for traffic. His head stays down, eyes on the phone.
+- By 4 seconds, he has reached approximately the center of the crosswalk, still walking, still looking at his phone.
+
+PHASE 2 — Child Dash (4-6 seconds):
+- On the RIGHT sidewalk, a mother and a small child (approximately 6 years old) have been standing at the curb holding hands.
+- At exactly 4 seconds, the child suddenly yanks their hand free and SPRINTS into the road across the crosswalk. The sprint is sudden and explosive — a dramatic change from standing still.
+- The mother reaches out in alarm as the child breaks free.
+- A silver sedan is visible approaching from the background.
+
+PHASE 3 — Emergency Brake and Contrast (6-8 seconds):
+- The silver sedan performs a HARD emergency brake — the front of the car dips down dramatically as it screeches to a halt just before the crosswalk.
+- The child is in the crosswalk area.
+- CRITICAL CONTRAST: The distracted man in the dark shirt CONTINUES walking at the exact same steady pace, head still down, eyes still on his phone. He is completely oblivious to the near-miss behind him. He does not look up, flinch, or react.
+
+Critical details:
+- Three key actors throughout: the distracted man, the mother+child pair, and the silver sedan.
+- The man's behavior is constant and unchanging — steady walk, head down, phone in hand — from start to finish.
+- The child's transition from stationary to sprinting must be sudden and dramatic.
+- The sedan's emergency brake should look realistic with visible nose-dive.
+- The final seconds should clearly show the contrast: emergency chaos (braking car, dashing child) vs. complete obliviousness (phone man walking steadily).
+
+Setting: Daytime, clear sunny weather, same Israeli urban crosswalk from the reference image — white stripes, traffic lights, palm trees, apartment buildings.
+
+Style: Realistic traffic camera CCTV footage. Fixed static camera, natural lighting, no cinematic effects. Should look like actual surveillance footage.
+```
+
+---
+
 ## Frame Extraction Script
 
 After downloading the generated video, use this Python script to extract individual frames for YOLO analysis:

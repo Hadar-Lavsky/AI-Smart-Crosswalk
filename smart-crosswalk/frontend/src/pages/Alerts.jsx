@@ -9,9 +9,8 @@ import { useToast } from "../components/ui";
 import { StatsGrid } from "../components/common/StatsGrid";
 import { GenericList } from "../components/common/GenericList";
 import { GenericDetailCard } from "../components/common/GenericDetailCard";
-import { AlertDialog } from "../components/alerts";
-import { FilterBar } from "../components/FilterBar";
-import { useAlerts, useCrosswalks } from "../hooks";
+import { AlertDialog, FilterBar, useAlerts } from "../features/alerts";
+import { useCrosswalks } from "../features/crosswalks";
 
 /**
  * Alerts — CRUD list page for detection alerts.

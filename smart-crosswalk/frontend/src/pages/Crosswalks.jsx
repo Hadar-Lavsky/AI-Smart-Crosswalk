@@ -5,8 +5,9 @@ import { useToast } from '../components/ui';
 import { StatsGrid } from '../components/common/StatsGrid';
 import { GenericList } from '../components/common/GenericList';
 import { GenericDetailCard } from '../components/common/GenericDetailCard';
-import { CrosswalkDialog, CrosswalkEditDialog } from '../components/crosswalks';
-import { useCrosswalks, useCameras, useLEDs } from '../hooks';
+import { CrosswalkDialog, CrosswalkEditDialog, useCrosswalks } from '../features/crosswalks';
+import { useCameras } from '../features/cameras';
+import { useLEDs } from '../features/leds';
 
 /**
  * Crosswalks — CRUD list page for crosswalk locations.
