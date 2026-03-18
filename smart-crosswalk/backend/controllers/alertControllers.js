@@ -2,6 +2,7 @@ import Alert from "../models/Alert.js";
 import Crosswalk from "../models/Crosswalk.js";
 import Camera from "../models/Camera.js";
 import getDangerLevelFromConfidence from "../utils/dangerLevel.js";
+import { emitAlertRealtime } from "../socket/index.js";
 
 /** Shared populate config for crosswalk chain */
 const crosswalkPopulate = {
@@ -113,10 +114,17 @@ export async function createAlert(req, res, next) {
 
     const doc = new Alert(alertData);
     const alert = await doc.save();
+    // Re-read with populate so realtime clients get full related objects.
+    const populatedAlert = await Alert.findById(alert._id).populate(
+      crosswalkPopulate,
+    );
+
+    // Push the new alert immediately to Socket.IO listeners.
+    emitAlertRealtime(populatedAlert);
 
     res.status(201).json({
       success: true,
-      data: alert,
+      data: populatedAlert,
       id: alert._id,
     });
   } catch (error) {

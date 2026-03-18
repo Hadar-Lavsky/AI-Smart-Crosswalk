@@ -1,8 +1,8 @@
 import { Routes, Route } from "react-router-dom";
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { ToastProvider } from "./components/ui";
 import { MainLayout } from "./layouts/MainLayout";
 import { Dashboard, Alerts, Crosswalks, CrosswalkDetailsPage } from "./pages";
+import { SocketBridge } from "./realtime/SocketBridge";
 
 /**
  * App — root component.
@@ -15,6 +15,7 @@ import { Dashboard, Alerts, Crosswalks, CrosswalkDetailsPage } from "./pages";
 function App() {
   return (
     <ToastProvider>
+      <SocketBridge />
       <MainLayout>
         <Routes>
           <Route path="/" element={<Dashboard />} />

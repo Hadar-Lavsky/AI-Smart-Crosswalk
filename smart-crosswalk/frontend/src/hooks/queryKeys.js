@@ -17,6 +17,7 @@ export const queryKeys = {
     list: (page) => ["crosswalks", "list", page],
     stats: ["crosswalks-stats"],
     detail: (id) => ["crosswalk", id],
+    alertsPrefix: (id) => ["crosswalk-alerts", id],
     alerts: (id, filters, page) => ["crosswalk-alerts", id, filters, page],
     detailStats: (id) => ["crosswalk-stats", id],
   },

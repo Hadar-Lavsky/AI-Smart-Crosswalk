@@ -1,9 +1,11 @@
 import express from "express";
 import cors from "cors";
 import dotenv from "dotenv";
+import { createServer } from "http";
 import { fileURLToPath } from "url";
 import { dirname, join } from "path";
 import connectDB from "./config/db.js";
+import { initSocket } from "./socket/index.js";
 import {
   alertRoutes,
   crosswalkRoutes,
@@ -79,7 +81,15 @@ app.use(errorHandler);
 
 // Start server
 const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => {
+const httpServer = createServer(app);
+initSocket(httpServer, {
+  cors: {
+    origin: process.env.CORS_ORIGIN,
+    credentials: true,
+  },
+});
+
+httpServer.listen(PORT, () => {
   console.log(
     `🚀 Server running in ${process.env.NODE_ENV} mode on port ${PORT}`,
   );
