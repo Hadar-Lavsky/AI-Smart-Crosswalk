@@ -4,7 +4,11 @@ Goal: explain in simple terms what changed, how the flow now works end-to-end, a
 
 ## Big Picture in One Sentence
 
-The flow is now: detection script processes an image -> creates an alert on the backend -> backend broadcasts a live event -> frontend updates immediately without manual refresh.
+The flow is now: detection script processes an image -> uploads it to
+
+Cloudinary
+
+(in-memory, no local files) -> creates an alert on the backend with cloud URL -> backend broadcasts a live event -> frontend updates immediately without manual refresh.
 
 ## 1) Starting Point: Script Detects and Calculates Risk
 
@@ -14,7 +18,21 @@ The script reads images, runs detection, calculates person relative height, and 
 -   Start processing the image folder: [backend/ai/main_with_live_alerts.py](../backend/ai/main_with_live_alerts.py#L124)
 -   Run detection per image: [backend/ai/main_with_live_alerts.py](../backend/ai/main_with_live_alerts.py#L158)
 -   Send only medium/high danger alerts: [backend/ai/main_with_live_alerts.py](../backend/ai/main_with_live_alerts.py#L187)
--   Actual backend POST call: [backend/ai/main_with_live_alerts.py](../backend/ai/main_with_live_alerts.py#L196)
+
+## 1.5) NEW: Upload Detected Image to Cloudinary (In-Memory, No Local Files)
+
+The script encodes the frame as JPEG in memory and uploads directly to
+
+Cloudinary
+
+without saving to disk.
+
+-   In-memory JPEG encoding: [backend/ai/main_with_live_alerts.py](../backend/ai/main_with_live_alerts.py#L**) (uses `cv2.imencode()`)
+-   Cloudinary upload function: [backend/ai/main_with_live_alerts.py](../backend/ai/main_with_live_alerts.py#L**) (`upload_alert_image_to_cloudinary()`)
+-   Receive secure cloud URL: [backend/ai/main_with_live_alerts.py](../backend/ai/main_with_live_alerts.py#L**)
+-   POST alert with cloud URL: [backend/ai/main_with_live_alerts.py](../backend/ai/main_with_live_alerts.py#L196)
+
+Key point: No cv2.imwrite(), no local `/detected-image/` folder. Zero disk I/O for images.
 
 ## 2) Backend Receives and Saves the Alert
 
@@ -76,9 +94,27 @@ When an event arrives:
 -   Background revalidation: [frontend/src/realtime/SocketBridge.jsx](../frontend/src/realtime/SocketBridge.jsx#L92)
 -   Bridge mounted at app root: [frontend/src/App.jsx](../frontend/src/App.jsx#L18)
 
-## 7) Main Files to Present to Instructor
+## 8) Cloudinary Configuration
 
-1.  [backend/ai/main_with_live_alerts.py](../backend/ai/main_with_live_alerts.py)
+The AI script requires
+
+Cloudinary
+
+credentials in `.env`:
+
+```
+CLOUDINARY_CLOUD_NAME=your_cloud_name
+CLOUDINARY_API_KEY=your_api_key
+CLOUDINARY_API_SECRET=your_api_secret
+```
+
+The `configure_cloudinary_from_env()` function validates these at startup. If missing, the script will fail gracefully.
+
+-   Cloudinary setup function: [backend/ai/main_with_live_alerts.py](../backend/ai/main_with_live_alerts.py#L**)
+
+## 9) Main Files to Present to Instructor
+
+1.  [backend/ai/main_with_live_alerts.py](../backend/ai/main_with_live_alerts.py) — **Cloudinary integration** (in-memory encoding, cloud upload, no local files)
 2.  [backend/routes/alertRoutes.js](../backend/routes/alertRoutes.js)
 3.  [backend/controllers/alertControllers.js](../backend/controllers/alertControllers.js)
 4.  [backend/socket/index.js](../backend/socket/index.js)
@@ -87,6 +123,14 @@ When an event arrives:
 7.  [frontend/src/realtime/SocketBridge.jsx](../frontend/src/realtime/SocketBridge.jsx)
 8.  [frontend/src/App.jsx](../frontend/src/App.jsx)
 
-## 8) One-Line Presentation Summary
+## 10) One-Line Presentation Summary
 
-"We added a real-time layer that connects backend alert creation to immediate frontend updates, so the system behaves like a live stream instead of periodic refresh only."
+"We added a cloud-first, real-time layer: detection images upload to
+
+Cloudinary
+
+in memory (zero disk I/O), alerts are created immediately, and
+
+Socket.IO
+
+broadcasts them live to all users—no refresh needed, no local file storage."

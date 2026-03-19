@@ -1,0 +1,152 @@
+{
+  "generatedAt": "2026-03-18T17:34:30.804399Z",
+  "uploadedCount": 18,
+  "failedCount": 0,
+  "uploaded": [
+    {
+      "fileName": "Mock_img.jpg",
+      "sourcePath": "C:\\Users\\shale\\Desktop\\smart-crosswalk tal\\smart-crosswalk\\backend\\ai\\mocks_img\\Mock_img.jpg",
+      "publicId": "smart-crosswalk/Mock_img",
+      "secureUrl": "https://res.cloudinary.com/dlfxhjyl1/image/upload/v1773855249/smart-crosswalk/Mock_img.jpg",
+      "bytes": 60693,
+      "format": "jpg"
+    },
+    {
+      "fileName": "bus.jpg",
+      "sourcePath": "C:\\Users\\shale\\Desktop\\smart-crosswalk tal\\smart-crosswalk\\backend\\ai\\mocks_img\\bus.jpg",
+      "publicId": "smart-crosswalk/bus",
+      "secureUrl": "https://res.cloudinary.com/dlfxhjyl1/image/upload/v1773855250/smart-crosswalk/bus.jpg",
+      "bytes": 137419,
+      "format": "jpg"
+    },
+    {
+      "fileName": "gettyimages-1001835308-612x612.jpg",
+      "sourcePath": "C:\\Users\\shale\\Desktop\\smart-crosswalk tal\\smart-crosswalk\\backend\\ai\\mocks_img\\gettyimages-1001835308-612x612.jpg",
+      "publicId": "smart-crosswalk/gettyimages-1001835308-612x612",
+      "secureUrl": "https://res.cloudinary.com/dlfxhjyl1/image/upload/v1773855251/smart-crosswalk/gettyimages-1001835308-612x612.jpg",
+      "bytes": 37745,
+      "format": "jpg"
+    },
+    {
+      "fileName": "gettyimages-1702547144-612x612.jpg",
+      "sourcePath": "C:\\Users\\shale\\Desktop\\smart-crosswalk tal\\smart-crosswalk\\backend\\ai\\mocks_img\\gettyimages-1702547144-612x612.jpg",
+      "publicId": "smart-crosswalk/gettyimages-1702547144-612x612",
+      "secureUrl": "https://res.cloudinary.com/dlfxhjyl1/image/upload/v1773855252/smart-crosswalk/gettyimages-1702547144-612x612.jpg",
+      "bytes": 50139,
+      "format": "jpg"
+    },
+    {
+      "fileName": "gettyimages-2147574959-612x612.jpg",
+      "sourcePath": "C:\\Users\\shale\\Desktop\\smart-crosswalk tal\\smart-crosswalk\\backend\\ai\\mocks_img\\gettyimages-2147574959-612x612.jpg",
+      "publicId": "smart-crosswalk/gettyimages-2147574959-612x612",
+      "secureUrl": "https://res.cloudinary.com/dlfxhjyl1/image/upload/v1773855252/smart-crosswalk/gettyimages-2147574959-612x612.jpg",
+      "bytes": 52156,
+      "format": "jpg"
+    },
+    {
+      "fileName": "gettyimages-2226203102-612x612.jpg",
+      "sourcePath": "C:\\Users\\shale\\Desktop\\smart-crosswalk tal\\smart-crosswalk\\backend\\ai\\mocks_img\\gettyimages-2226203102-612x612.jpg",
+      "publicId": "smart-crosswalk/gettyimages-2226203102-612x612",
+      "secureUrl": "https://res.cloudinary.com/dlfxhjyl1/image/upload/v1773855253/smart-crosswalk/gettyimages-2226203102-612x612.jpg",
+      "bytes": 49430,
+      "format": "jpg"
+    },
+    {
+      "fileName": "gettyimages-2226203119-612x612.jpg",
+      "sourcePath": "C:\\Users\\shale\\Desktop\\smart-crosswalk tal\\smart-crosswalk\\backend\\ai\\mocks_img\\gettyimages-2226203119-612x612.jpg",
+      "publicId": "smart-crosswalk/gettyimages-2226203119-612x612",
+      "secureUrl": "https://res.cloudinary.com/dlfxhjyl1/image/upload/v1773855254/smart-crosswalk/gettyimages-2226203119-612x612.jpg",
+      "bytes": 58215,
+      "format": "jpg"
+    },
+    {
+      "fileName": "gettyimages-629331643-612x612.jpg",
+      "sourcePath": "C:\\Users\\shale\\Desktop\\smart-crosswalk tal\\smart-crosswalk\\backend\\ai\\mocks_img\\gettyimages-629331643-612x612.jpg",
+      "publicId": "smart-crosswalk/gettyimages-629331643-612x612",
+      "secureUrl": "https://res.cloudinary.com/dlfxhjyl1/image/upload/v1773855256/smart-crosswalk/gettyimages-629331643-612x612.jpg",
+      "bytes": 52448,
+      "format": "jpg"
+    },
+    {
+      "fileName": "mock02.jpg",
+      "sourcePath": "C:\\Users\\shale\\Desktop\\smart-crosswalk tal\\smart-crosswalk\\backend\\ai\\mocks_img\\mock02.jpg",
+      "publicId": "smart-crosswalk/mock02",
+      "secureUrl": "https://res.cloudinary.com/dlfxhjyl1/image/upload/v1773855257/smart-crosswalk/mock02.jpg",
+      "bytes": 48382,
+      "format": "jpg"
+    },
+    {
+      "fileName": "Mock_img.jpg",
+      "sourcePath": "C:\\Users\\shale\\Desktop\\smart-crosswalk tal\\smart-crosswalk\\backend\\ai\\mocks_img_output\\Mock_img.jpg",
+      "publicId": "smart-crosswalk/Mock_img",
+      "secureUrl": "https://res.cloudinary.com/dlfxhjyl1/image/upload/v1773855258/smart-crosswalk/Mock_img.jpg",
+      "bytes": 118085,
+      "format": "jpg"
+    },
+    {
+      "fileName": "bus.jpg",
+      "sourcePath": "C:\\Users\\shale\\Desktop\\smart-crosswalk tal\\smart-crosswalk\\backend\\ai\\mocks_img_output\\bus.jpg",
+      "publicId": "smart-crosswalk/bus",
+      "secureUrl": "https://res.cloudinary.com/dlfxhjyl1/image/upload/v1773855260/smart-crosswalk/bus.jpg",
+      "bytes": 357202,
+      "format": "jpg"
+    },
+    {
+      "fileName": "gettyimages-1001835308-612x612.jpg",
+      "sourcePath": "C:\\Users\\shale\\Desktop\\smart-crosswalk tal\\smart-crosswalk\\backend\\ai\\mocks_img_output\\gettyimages-1001835308-612x612.jpg",
+      "publicId": "smart-crosswalk/gettyimages-1001835308-612x612",
+      "secureUrl": "https://res.cloudinary.com/dlfxhjyl1/image/upload/v1773855261/smart-crosswalk/gettyimages-1001835308-612x612.jpg",
+      "bytes": 72628,
+      "format": "jpg"
+    },
+    {
+      "fileName": "gettyimages-1702547144-612x612.jpg",
+      "sourcePath": "C:\\Users\\shale\\Desktop\\smart-crosswalk tal\\smart-crosswalk\\backend\\ai\\mocks_img_output\\gettyimages-1702547144-612x612.jpg",
+      "publicId": "smart-crosswalk/gettyimages-1702547144-612x612",
+      "secureUrl": "https://res.cloudinary.com/dlfxhjyl1/image/upload/v1773855263/smart-crosswalk/gettyimages-1702547144-612x612.jpg",
+      "bytes": 99333,
+      "format": "jpg"
+    },
+    {
+      "fileName": "gettyimages-2147574959-612x612.jpg",
+      "sourcePath": "C:\\Users\\shale\\Desktop\\smart-crosswalk tal\\smart-crosswalk\\backend\\ai\\mocks_img_output\\gettyimages-2147574959-612x612.jpg",
+      "publicId": "smart-crosswalk/gettyimages-2147574959-612x612",
+      "secureUrl": "https://res.cloudinary.com/dlfxhjyl1/image/upload/v1773855263/smart-crosswalk/gettyimages-2147574959-612x612.jpg",
+      "bytes": 107219,
+      "format": "jpg"
+    },
+    {
+      "fileName": "gettyimages-2226203102-612x612.jpg",
+      "sourcePath": "C:\\Users\\shale\\Desktop\\smart-crosswalk tal\\smart-crosswalk\\backend\\ai\\mocks_img_output\\gettyimages-2226203102-612x612.jpg",
+      "publicId": "smart-crosswalk/gettyimages-2226203102-612x612",
+      "secureUrl": "https://res.cloudinary.com/dlfxhjyl1/image/upload/v1773855265/smart-crosswalk/gettyimages-2226203102-612x612.jpg",
+      "bytes": 94742,
+      "format": "jpg"
+    },
+    {
+      "fileName": "gettyimages-2226203119-612x612.jpg",
+      "sourcePath": "C:\\Users\\shale\\Desktop\\smart-crosswalk tal\\smart-crosswalk\\backend\\ai\\mocks_img_output\\gettyimages-2226203119-612x612.jpg",
+      "publicId": "smart-crosswalk/gettyimages-2226203119-612x612",
+      "secureUrl": "https://res.cloudinary.com/dlfxhjyl1/image/upload/v1773855265/smart-crosswalk/gettyimages-2226203119-612x612.jpg",
+      "bytes": 116341,
+      "format": "jpg"
+    },
+    {
+      "fileName": "gettyimages-629331643-612x612.jpg",
+      "sourcePath": "C:\\Users\\shale\\Desktop\\smart-crosswalk tal\\smart-crosswalk\\backend\\ai\\mocks_img_output\\gettyimages-629331643-612x612.jpg",
+      "publicId": "smart-crosswalk/gettyimages-629331643-612x612",
+      "secureUrl": "https://res.cloudinary.com/dlfxhjyl1/image/upload/v1773855266/smart-crosswalk/gettyimages-629331643-612x612.jpg",
+      "bytes": 107391,
+      "format": "jpg"
+    },
+    {
+      "fileName": "mock02.jpg",
+      "sourcePath": "C:\\Users\\shale\\Desktop\\smart-crosswalk tal\\smart-crosswalk\\backend\\ai\\mocks_img_output\\mock02.jpg",
+      "publicId": "smart-crosswalk/mock02",
+      "secureUrl": "https://res.cloudinary.com/dlfxhjyl1/image/upload/v1773855267/smart-crosswalk/mock02.jpg",
+      "bytes": 121140,
+      "format": "jpg"
+    }
+  ],
+  "failed": []
+}

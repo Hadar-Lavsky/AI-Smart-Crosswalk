@@ -25,6 +25,8 @@ export function useAlertStats({
       return response.data;
     },
     refetchInterval: autoRefresh ? refreshInterval : false,
+    refetchOnMount: "always",
+    refetchOnReconnect: true,
   });
 
   return { stats, loading };

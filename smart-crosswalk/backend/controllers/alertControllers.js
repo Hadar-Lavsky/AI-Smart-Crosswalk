@@ -2,6 +2,10 @@ import Alert from "../models/Alert.js";
 import Crosswalk from "../models/Crosswalk.js";
 import Camera from "../models/Camera.js";
 import getDangerLevelFromConfidence from "../utils/dangerLevel.js";
+import {
+  deleteCloudinaryAssetByUrl,
+  isCloudinaryUrl,
+} from "../utils/cloudinary.js";
 import { emitAlertRealtime } from "../socket/index.js";
 
 /** Shared populate config for crosswalk chain */
@@ -157,12 +161,19 @@ export async function updateAlertById(req, res, next) {
 // DELETE /api/alerts/:id - Delete alert
 export async function deleteAlertById(req, res, next) {
   try {
-    const alert = await Alert.findByIdAndDelete(req.params.id);
+    const alert = await Alert.findById(req.params.id);
 
     if (!alert) {
       res.status(404);
       throw new Error("Alert not found");
     }
+
+    // Keep DB and cloud storage consistent for Cloudinary-backed alerts.
+    if (isCloudinaryUrl(alert.imageUrl)) {
+      await deleteCloudinaryAssetByUrl(alert.imageUrl);
+    }
+
+    await Alert.findByIdAndDelete(req.params.id);
 
     res.json({
       success: true,

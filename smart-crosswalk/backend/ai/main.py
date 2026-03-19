@@ -1,6 +1,5 @@
 import os
 from ultralytics import YOLO
-import cv2
 
 
 # 0 usefull functions
@@ -17,9 +16,8 @@ model = YOLO('yolov8n-pose.pt')
 # 2.setup data
 # Getting the directory of the current script file "main.py" absolute path
 script_dir = os.path.dirname(os.path.abspath(__file__))
-# Getting the absolute path of the input and output folders
+# Getting the absolute path of the input folder
 input_folder = os.path.join(script_dir, 'mocks_img')
-output_folder = os.path.join(script_dir, 'mocks_img_output')
 
 # 3. procees the folder
 print(f"Processing folder: {input_folder}")
@@ -53,9 +51,8 @@ for filename in os.listdir(input_folder):
                 print(
                     f"   Person {i+1}: Height = {bbox_height:.1f}px ({relative_height:.2f}% of image)")
 
-            im_array = r.plot(kpt_radius=1, line_width=1)
-            output_path = os.path.join(output_folder, filename)
-            cv2.imwrite(output_path, im_array)
+            # No local file write for detected images.
+            r.plot(kpt_radius=1, line_width=1)
 
 print(f"Processed {filename}")
 

@@ -2,8 +2,6 @@ import express from "express";
 import cors from "cors";
 import dotenv from "dotenv";
 import { createServer } from "http";
-import { fileURLToPath } from "url";
-import { dirname, join } from "path";
 import connectDB from "./config/db.js";
 import { initSocket } from "./socket/index.js";
 import {
@@ -35,14 +33,6 @@ app.use(
   }),
 );
 app.use(express.json({ limit: "10mb" }));
-
-// Serve YOLO detection output images as static files
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = dirname(__filename);
-app.use(
-  "/api/images",
-  express.static(join(__dirname, "ai", "mocks_img_output")),
-);
 
 // API Routes
 app.use("/api/alerts", alertRoutes);

@@ -13,21 +13,7 @@ dotenv.config({ path: join(__dirname, '..', '.env') });
 // Configuration
 // ---------------------------------------------------------------------------
 
-const API_BASE = 'http://localhost:3000';
 const ALERT_COUNT = 70;
-
-/** YOLO detection output images (served from /api/images/) */
-const IMAGE_FILENAMES = [
-  'Mock_img.jpg',
-  'bus.jpg',
-  'mock02.jpg',
-  'gettyimages-1001835308-612x612.jpg',
-  'gettyimages-1702547144-612x612.jpg',
-  'gettyimages-2147574959-612x612.jpg',
-  'gettyimages-2226203102-612x612.jpg',
-  'gettyimages-2226203119-612x612.jpg',
-  'gettyimages-629331643-612x612.jpg',
-];
 
 /** Danger level distribution: ~40% LOW, ~40% MEDIUM, ~20% HIGH */
 const DANGER_LEVELS = [
@@ -113,7 +99,6 @@ const seedDatabase = async () => {
       alertDocs.push({
         dangerLevel: pick(DANGER_LEVELS),
         crosswalkId: hasCrosswalk ? pick(crosswalks)._id : null,
-        imageUrl: `${API_BASE}/api/images/${IMAGE_FILENAMES[i % IMAGE_FILENAMES.length]}`,
         timestamp: randomDate(30),
       });
     }
