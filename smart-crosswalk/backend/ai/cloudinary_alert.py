@@ -2,8 +2,9 @@
 Upload image to Cloudinary and create alert in MongoDB using the secure_url.
 
 Usage:
-    python cloudinary_test.py --image path/to/image.jpg --danger-level HIGH
-    python cloudinary_test.py --image path/to/image.jpg --camera-id <id>
+   python cloudinary_alert.py --image path/to/image.jpg --camera-id 69617b55eb7ffca4f1000bb5
+       python cloudinary_alert.py --image mocks_img_output\gettyimages-1001835308-612x612.jpg --camera-id 69617b55eb7ffca4f1000bb5
+
 """
 
 import os
