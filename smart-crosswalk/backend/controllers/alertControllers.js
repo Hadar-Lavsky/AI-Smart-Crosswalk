@@ -7,51 +7,38 @@ import {
   isCloudinaryUrl,
 } from "../utils/cloudinary.js";
 import { emitAlertRealtime } from "../socket/index.js";
-
-/** Shared populate config for crosswalk chain */
-const crosswalkPopulate = {
-  path: "crosswalkId",
-  select: "location cameraId ledId",
-  populate: [
-    { path: "cameraId", select: "_id status" },
-    { path: "ledId", select: "_id" },
-  ],
-};
+import {
+  alertCrosswalkPopulate,
+  parsePagination,
+  buildPagination,
+  notFound,
+} from "./controllerHelpers.js";
 
 // GET /api/alerts - Get all alerts (paginated)
 export async function getAllAlerts(req, res, next) {
   try {
-    const { dangerLevel, crosswalkId, page, limit } = req.query;
+    const { dangerLevel, crosswalkId } = req.query;
     const query = {};
     if (dangerLevel) query.dangerLevel = dangerLevel;
     if (crosswalkId) query.crosswalkId = crosswalkId;
 
-    const parsedPage = parseInt(page) || 1;
-    const parsedLimit = parseInt(limit) || 10;
-    const skip = (parsedPage - 1) * parsedLimit;
+    const { parsedPage, parsedLimit, skip } = parsePagination(req.query);
 
     const [alerts, total] = await Promise.all([
       Alert.find(query)
-        .populate(crosswalkPopulate)
+        .populate(alertCrosswalkPopulate)
         .sort({ timestamp: -1 })
         .skip(skip)
         .limit(parsedLimit),
       Alert.countDocuments(query),
     ]);
 
-    const totalPages = Math.ceil(total / parsedLimit);
-
     res.json({
       success: true,
       count: alerts.length,
       total,
       data: alerts,
-      pagination: {
-        currentPage: parsedPage,
-        totalPages,
-        total,
-        hasMore: parsedPage * parsedLimit < total,
-      },
+      pagination: buildPagination(parsedPage, parsedLimit, total),
     });
   } catch (error) {
     next(error);
@@ -62,18 +49,12 @@ export async function getAllAlerts(req, res, next) {
 export async function getAlertById(req, res, next) {
   try {
     const alert = await Alert.findById(req.params.id).populate(
-      crosswalkPopulate
+      alertCrosswalkPopulate
     );
 
-    if (!alert) {
-      res.status(404);
-      throw new Error("Alert not found");
-    }
+    if (!alert) notFound(res, "Alert not found");
 
-    res.json({
-      success: true,
-      data: alert,
-    });
+    res.json({ success: true, data: alert });
   } catch (error) {
     next(error);
   }
@@ -90,10 +71,7 @@ export async function createAlert(req, res, next) {
     // Find or create crosswalk by location/camera
     if (crosswalkId) {
       alertData.crosswalkId = crosswalkId;
-    } else if (
-      location &&
-      (location.city || location.street || location.number)
-    ) {
+    } else if (location && (location.city || location.street || location.number)) {
       try {
         const crosswalk = await findOrCreateCrosswalk(location, cameraId || null);
         alertData.crosswalkId = crosswalk._id;
@@ -111,17 +89,12 @@ export async function createAlert(req, res, next) {
       alertData.dangerLevel = "MEDIUM";
     }
 
-    // Image: Cloudinary URL from JSON body
-    if (imageUrl) {
-      alertData.imageUrl = imageUrl;
-    }
+    if (imageUrl) alertData.imageUrl = imageUrl;
 
     const doc = new Alert(alertData);
     const alert = await doc.save();
     // Re-read with populate so realtime clients get full related objects.
-    const populatedAlert = await Alert.findById(alert._id).populate(
-      crosswalkPopulate,
-    );
+    const populatedAlert = await Alert.findById(alert._id).populate(alertCrosswalkPopulate);
 
     // Push the new alert immediately to Socket.IO listeners.
     emitAlertRealtime(populatedAlert);
@@ -142,17 +115,11 @@ export async function updateAlertById(req, res, next) {
     const alert = await Alert.findByIdAndUpdate(req.params.id, req.body, {
       new: true,
       runValidators: true,
-    }).populate(crosswalkPopulate);
+    }).populate(alertCrosswalkPopulate);
 
-    if (!alert) {
-      res.status(404);
-      throw new Error("Alert not found");
-    }
+    if (!alert) notFound(res, "Alert not found");
 
-    res.json({
-      success: true,
-      data: alert,
-    });
+    res.json({ success: true, data: alert });
   } catch (error) {
     next(error);
   }
@@ -163,10 +130,7 @@ export async function deleteAlertById(req, res, next) {
   try {
     const alert = await Alert.findById(req.params.id);
 
-    if (!alert) {
-      res.status(404);
-      throw new Error("Alert not found");
-    }
+    if (!alert) notFound(res, "Alert not found");
 
     // Keep DB and cloud storage consistent for Cloudinary-backed alerts.
     if (isCloudinaryUrl(alert.imageUrl)) {
@@ -175,10 +139,7 @@ export async function deleteAlertById(req, res, next) {
 
     await Alert.findByIdAndDelete(req.params.id);
 
-    res.json({
-      success: true,
-      message: "Alert deleted successfully",
-    });
+    res.json({ success: true, message: "Alert deleted successfully" });
   } catch (error) {
     next(error);
   }
@@ -194,10 +155,7 @@ export async function getStats(req, res, next) {
       Alert.countDocuments({ dangerLevel: "HIGH" }),
     ]);
 
-    res.json({
-      success: true,
-      data: { total, low, medium, high },
-    });
+    res.json({ success: true, data: { total, low, medium, high } });
   } catch (error) {
     next(error);
   }
@@ -209,7 +167,6 @@ async function findOrCreateCrosswalk(location, cameraId) {
     throw new Error("Location must have city, street, and number");
   }
 
-  // Try to find existing crosswalk by location
   let crosswalk = await Crosswalk.findOne({
     "location.city": location.city,
     "location.street": location.street,
@@ -217,19 +174,13 @@ async function findOrCreateCrosswalk(location, cameraId) {
   });
 
   if (crosswalk) {
-    // Update cameraId if provided and different
-    if (
-      cameraId &&
-      (!crosswalk.cameraId || crosswalk.cameraId.toString() !== cameraId)
-    ) {
+    if (cameraId && (!crosswalk.cameraId || crosswalk.cameraId.toString() !== cameraId)) {
       const camera = await Camera.findById(cameraId);
       if (!camera) throw new Error("Camera not found");
-
       crosswalk.cameraId = cameraId;
       crosswalk = await crosswalk.save();
     }
   } else {
-    // Create new crosswalk
     const crosswalkData = {
       location: {
         city: location.city,
@@ -247,7 +198,5 @@ async function findOrCreateCrosswalk(location, cameraId) {
     crosswalk = await Crosswalk.create(crosswalkData);
   }
 
-  return Crosswalk.findById(crosswalk._id)
-    .populate("cameraId")
-    .populate("ledId");
+  return Crosswalk.findById(crosswalk._id).populate("cameraId").populate("ledId");
 }

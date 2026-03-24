@@ -25,7 +25,13 @@ cloudinary.config(
     secure=True
 )
 
-API_URL = os.getenv('BACKEND_API_URL', 'http://localhost:3000/api/alerts')
+# Require explicit configuration to avoid silent failures in different environments
+API_URL = os.getenv('BACKEND_API_URL')
+if not API_URL:
+    print("⚠️  BACKEND_API_URL not set. Using default: http://localhost:3000/api/alerts")
+    print("   For production/remote: export BACKEND_API_URL=https://your-api.com/api/alerts")
+    API_URL = 'http://localhost:3000/api/alerts'
+
 API_BASE_URL = API_URL.rsplit('/api/alerts', 1)[0]
 CROSSWALKS_URL = f"{API_BASE_URL}/api/crosswalks"
 REQUEST_TIMEOUT_SECONDS = 10

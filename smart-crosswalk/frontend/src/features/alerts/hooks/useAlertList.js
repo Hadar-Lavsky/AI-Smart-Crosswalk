@@ -47,7 +47,7 @@ export function useAlertList({ autoRefresh = true, refreshInterval = 5000 } = {}
   useEffect(() => {
     if (!data?.data) return;
 
-    const serverTotal = data?.data?.pagination?.total;
+    const serverTotal = data?.pagination?.total;
 
     // If backend data shrank (e.g. alerts were deleted), restart from page 1
     // so stale accumulated rows are dropped.
@@ -76,7 +76,7 @@ export function useAlertList({ autoRefresh = true, refreshInterval = 5000 } = {}
     }
   }, [accumulated.length, data, page, queryClient]);
 
-  const hasMore = data?.data?.pagination?.hasMore ?? false;
+  const hasMore = data?.pagination?.hasMore ?? false;
   const loadingMore = page > 1 && isFetching;
 
   const loadMore = useCallback(() => {

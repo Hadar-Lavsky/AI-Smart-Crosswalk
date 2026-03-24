@@ -11,6 +11,7 @@ import { GenericList } from "../components/common/GenericList";
 import { GenericDetailCard } from "../components/common/GenericDetailCard";
 import { AlertDialog, FilterBar, useAlerts } from "../features/alerts";
 import { useCrosswalks } from "../features/crosswalks";
+import { useDialog } from "../hooks";
 
 /**
  * Alerts — CRUD list page for detection alerts.
@@ -45,11 +46,8 @@ export function Alerts() {
   });
 
   // Create/Edit dialog state
-  const [formDialog, setFormDialog] = useState({ open: false, item: null });
+  const formDialog = useDialog();
   const [submitting, setSubmitting] = useState(false);
-  const handleCreate = () => setFormDialog({ open: true, item: null });
-  const handleEdit = (item) => setFormDialog({ open: true, item });
-  const closeFormDialog = () => setFormDialog({ open: false, item: null });
 
   const handleFormSubmit = async (formData) => {
     setSubmitting(true);
@@ -61,7 +59,7 @@ export function Alerts() {
         await createAlert(formData);
         addToast("Alert created successfully", "success");
       }
-      closeFormDialog();
+      formDialog.close();
     } catch (err) {
       addToast(err.message || "Error saving alert", "error");
     } finally {
@@ -70,16 +68,14 @@ export function Alerts() {
   };
 
   // Delete dialog state
-  const [deleteDialog, setDeleteDialog] = useState({ open: false, item: null });
-  const handleDelete = (item) => setDeleteDialog({ open: true, item });
-  const closeDeleteDialog = () => setDeleteDialog({ open: false, item: null });
+  const deleteDialog = useDialog();
 
   const handleConfirmDelete = async () => {
     setSubmitting(true);
     try {
       await deleteAlert(deleteDialog.item._id);
       addToast("Alert deleted successfully", "success");
-      closeDeleteDialog();
+      deleteDialog.close();
     } catch (err) {
       addToast(err.message || "Error deleting alert", "error");
     } finally {
@@ -168,7 +164,7 @@ export function Alerts() {
           title="Alerts"
           description="Monitor and manage all detection alerts from crosswalk cameras."
           actions={
-            <Button variant="primary" onClick={handleCreate}>
+            <Button variant="primary" onClick={formDialog.openCreate}>
               ➕ Add Alert
             </Button>
           }
@@ -195,8 +191,8 @@ export function Alerts() {
         <GenericList
           type="alert"
           data={filteredAlerts}
-          onEdit={handleEdit}
-          onDelete={handleDelete}
+          onEdit={formDialog.openWith}
+          onDelete={deleteDialog.openWith}
           hasMore={hasMore}
           onLoadMore={loadMore}
           loadingMore={loadingMore}
@@ -212,7 +208,7 @@ export function Alerts() {
       <AlertDialog
         open={formDialog.open}
         item={formDialog.item}
-        onClose={closeFormDialog}
+        onClose={formDialog.close}
         onSubmit={handleFormSubmit}
         loading={submitting}
         crosswalks={crosswalks}
@@ -220,7 +216,7 @@ export function Alerts() {
 
       <ConfirmDialog
         open={deleteDialog.open}
-        onClose={closeDeleteDialog}
+        onClose={deleteDialog.close}
         onConfirm={handleConfirmDelete}
         title="Delete Alert"
         message="Are you sure you want to delete this alert?"

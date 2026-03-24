@@ -4,7 +4,6 @@ import {
   getCameraById,
   createCamera,
   updateCameraStatus,
-  updateCamera,
   deleteCamera,
 } from "../controllers/cameraControllers.js";
 import { validateObjectId } from "../middleware/common/validateObjectId.js";
@@ -23,9 +22,6 @@ router.post("/", createCamera);
 
 // PATCH /api/cameras/:id/status - Update camera status
 router.patch("/:id/status", validateObjectId(), validateCameraStatus, updateCameraStatus);
-
-// PATCH /api/cameras/:id - Update camera (general)
-router.patch("/:id", validateObjectId(), updateCamera);
 
 // DELETE /api/cameras/:id - Delete camera
 router.delete("/:id", validateObjectId(), deleteCamera);

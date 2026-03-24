@@ -74,28 +74,6 @@ export async function updateCameraStatus(req, res, next) {
   }
 }
 
-// PATCH /api/cameras/:id - Update camera (general)
-export async function updateCamera(req, res, next) {
-  try {
-    const camera = await Camera.findByIdAndUpdate(req.params.id, req.body, {
-      new: true,
-      runValidators: true,
-    });
-
-    if (!camera) {
-      res.status(404);
-      throw new Error("Camera not found");
-    }
-
-    res.json({
-      success: true,
-      data: camera,
-    });
-  } catch (error) {
-    next(error);
-  }
-}
-
 // DELETE /api/cameras/:id - Delete camera
 export async function deleteCamera(req, res, next) {
   try {

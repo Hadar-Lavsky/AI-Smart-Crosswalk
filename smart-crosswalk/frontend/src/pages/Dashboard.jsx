@@ -17,8 +17,9 @@ import { CameraDialog } from "../features/cameras";
 import { LEDDialog } from "../features/leds";
 import { useAlertStats } from "../features/alerts";
 import { useCrosswalkStats } from "../features/crosswalks";
-import { useCameraList, useCameraMutations } from "../features/cameras";
-import { useLEDList, useLEDMutations } from "../features/leds";
+import { useCameras } from "../features/cameras";
+import { useLEDs } from "../features/leds";
+import { useDialog } from "../hooks";
 
 /**
  * Dashboard — top-level overview page.
@@ -29,30 +30,20 @@ import { useLEDList, useLEDMutations } from "../features/leds";
  *
  * Route: `/`
  */
-
 export function Dashboard() {
   const { stats: alertStats } = useAlertStats();
   const { stats: crosswalkStats } = useCrosswalkStats();
 
-  const { cameras } = useCameraList();
-  const { createCamera, updateCameraStatus, deleteCamera } =
-    useCameraMutations();
-  const { leds } = useLEDList();
-  const { createLED, deleteLED } = useLEDMutations();
+  const { cameras, createCamera, updateCameraStatus, deleteCamera } = useCameras();
+  const { leds, createLED, deleteLED } = useLEDs();
 
   const { addToast } = useToast();
   const [showDevices, setShowDevices] = useState(false);
 
-  // Camera CRUD state
-  const [cameraForm, setCameraForm] = useState({ open: false, item: null });
-  const [cameraDelete, setCameraDelete] = useState({ open: false, item: null });
+  // Camera CRUD dialog state
+  const cameraForm = useDialog();
+  const cameraDeleteDialog = useDialog();
   const [cameraSubmitting, setCameraSubmitting] = useState(false);
-
-  const handleCameraCreate = () => setCameraForm({ open: true, item: null });
-  const handleCameraEdit = (item) => setCameraForm({ open: true, item });
-  const handleCameraDelete = (item) => setCameraDelete({ open: true, item });
-  const closeCameraForm = () => setCameraForm({ open: false, item: null });
-  const closeCameraDelete = () => setCameraDelete({ open: false, item: null });
 
   const handleCameraSubmit = async (formData) => {
     setCameraSubmitting(true);
@@ -64,7 +55,7 @@ export function Dashboard() {
         await createCamera(formData);
         addToast("Camera created successfully", "success");
       }
-      closeCameraForm();
+      cameraForm.close();
     } catch (err) {
       addToast(err.message || "Error saving camera", "error");
     } finally {
@@ -75,9 +66,9 @@ export function Dashboard() {
   const handleCameraConfirmDelete = async () => {
     setCameraSubmitting(true);
     try {
-      await deleteCamera(cameraDelete.item._id);
+      await deleteCamera(cameraDeleteDialog.item._id);
       addToast("Camera deleted successfully", "success");
-      closeCameraDelete();
+      cameraDeleteDialog.close();
     } catch (err) {
       addToast(err.message || "Error deleting camera", "error");
     } finally {
@@ -85,22 +76,17 @@ export function Dashboard() {
     }
   };
 
-  // LED CRUD state
-  const [ledForm, setLEDForm] = useState({ open: false, item: null });
-  const [ledDelete, setLEDDelete] = useState({ open: false, item: null });
+  // LED CRUD dialog state
+  const ledForm = useDialog();
+  const ledDeleteDialog = useDialog();
   const [ledSubmitting, setLEDSubmitting] = useState(false);
-
-  const handleLEDCreate = () => setLEDForm({ open: true, item: null });
-  const handleLEDDelete = (item) => setLEDDelete({ open: true, item });
-  const closeLEDForm = () => setLEDForm({ open: false, item: null });
-  const closeLEDDelete = () => setLEDDelete({ open: false, item: null });
 
   const handleLEDSubmit = async (formData) => {
     setLEDSubmitting(true);
     try {
       await createLED(formData);
       addToast("LED created successfully", "success");
-      closeLEDForm();
+      ledForm.close();
     } catch (err) {
       addToast(err.message || "Error saving LED", "error");
     } finally {
@@ -111,9 +97,9 @@ export function Dashboard() {
   const handleLEDConfirmDelete = async () => {
     setLEDSubmitting(true);
     try {
-      await deleteLED(ledDelete.item._id);
+      await deleteLED(ledDeleteDialog.item._id);
       addToast("LED deleted successfully", "success");
-      closeLEDDelete();
+      ledDeleteDialog.close();
     } catch (err) {
       addToast(err.message || "Error deleting LED", "error");
     } finally {
@@ -130,18 +116,8 @@ export function Dashboard() {
 
       <StatsGrid
         stats={[
-          {
-            title: "Total Alerts",
-            value: alertStats.total,
-            icon: "📋",
-            color: "primary",
-          },
-          {
-            title: "Total Crosswalks",
-            value: crosswalkStats.total,
-            icon: "🚦",
-            color: "success",
-          },
+          { title: "Total Alerts", value: alertStats.total, icon: "📋", color: "primary" },
+          { title: "Total Crosswalks", value: crosswalkStats.total, icon: "🚦", color: "success" },
         ]}
       />
 
@@ -149,22 +125,9 @@ export function Dashboard() {
         <GenericDetailCard
           header={{ icon: "🖥", title: "System Status" }}
           fields={[
-            {
-              label: "API Server",
-              component: <StatusIndicator status="online" label="Online" />,
-            },
-            {
-              label: "Database",
-              component: (
-                <StatusIndicator status="connected" label="Connected" />
-              ),
-            },
-            {
-              label: "YOLO Detection",
-              component: (
-                <StatusIndicator status="connected" label="Connected" />
-              ),
-            },
+            { label: "API Server", component: <StatusIndicator status="online" label="Online" /> },
+            { label: "Database", component: <StatusIndicator status="connected" label="Connected" /> },
+            { label: "YOLO Detection", component: <StatusIndicator status="connected" label="Connected" /> },
           ]}
         />
 
@@ -176,7 +139,7 @@ export function Dashboard() {
             <div className="grid grid-cols-2 gap-3">
               <Button
                 variant="secondary"
-                onClick={handleCameraCreate}
+                onClick={cameraForm.openCreate}
                 className="flex flex-col items-center gap-1 p-4 h-auto border-2 border-primary-200 bg-primary-50 hover:bg-primary-100 text-primary-700"
               >
                 <span className="text-2xl">📷</span>
@@ -184,7 +147,7 @@ export function Dashboard() {
               </Button>
               <Button
                 variant="secondary"
-                onClick={handleLEDCreate}
+                onClick={ledForm.openCreate}
                 className="flex flex-col items-center gap-1 p-4 h-auto border-2 border-success-200 bg-success-50 hover:bg-success-100 text-success-700"
               >
                 <span className="text-2xl">💡</span>
@@ -210,18 +173,16 @@ export function Dashboard() {
           {/* Cameras */}
           <div className="space-y-4">
             <div className="flex items-center justify-between">
-              <h3 className="text-lg font-semibold text-surface-900">
-                📷 Cameras
-              </h3>
-              <Button variant="primary" size="sm" onClick={handleCameraCreate}>
+              <h3 className="text-lg font-semibold text-surface-900">📷 Cameras</h3>
+              <Button variant="primary" size="sm" onClick={cameraForm.openCreate}>
                 ➕ Add Camera
               </Button>
             </div>
             <GenericList
               type="camera"
               data={cameras}
-              onEdit={handleCameraEdit}
-              onDelete={handleCameraDelete}
+              onEdit={cameraForm.openWith}
+              onDelete={cameraDeleteDialog.openWith}
               emptyIcon="📷"
               emptyTitle="No Cameras"
               emptyMessage="No cameras registered yet."
@@ -231,17 +192,15 @@ export function Dashboard() {
           {/* LEDs */}
           <div className="space-y-4">
             <div className="flex items-center justify-between">
-              <h3 className="text-lg font-semibold text-surface-900">
-                💡 LED Systems
-              </h3>
-              <Button variant="primary" size="sm" onClick={handleLEDCreate}>
+              <h3 className="text-lg font-semibold text-surface-900">💡 LED Systems</h3>
+              <Button variant="primary" size="sm" onClick={ledForm.openCreate}>
                 ➕ Add LED
               </Button>
             </div>
             <GenericList
               type="led"
               data={leds}
-              onDelete={handleLEDDelete}
+              onDelete={ledDeleteDialog.openWith}
               emptyIcon="💡"
               emptyTitle="No LEDs"
               emptyMessage="No LED systems registered yet."
@@ -254,13 +213,13 @@ export function Dashboard() {
       <CameraDialog
         open={cameraForm.open}
         item={cameraForm.item}
-        onClose={closeCameraForm}
+        onClose={cameraForm.close}
         onSubmit={handleCameraSubmit}
         loading={cameraSubmitting}
       />
       <ConfirmDialog
-        open={cameraDelete.open}
-        onClose={closeCameraDelete}
+        open={cameraDeleteDialog.open}
+        onClose={cameraDeleteDialog.close}
         onConfirm={handleCameraConfirmDelete}
         title="Delete Camera"
         message="Are you sure you want to delete this camera?"
@@ -273,13 +232,13 @@ export function Dashboard() {
       <LEDDialog
         open={ledForm.open}
         item={ledForm.item}
-        onClose={closeLEDForm}
+        onClose={ledForm.close}
         onSubmit={handleLEDSubmit}
         loading={ledSubmitting}
       />
       <ConfirmDialog
-        open={ledDelete.open}
-        onClose={closeLEDDelete}
+        open={ledDeleteDialog.open}
+        onClose={ledDeleteDialog.close}
         onConfirm={handleLEDConfirmDelete}
         title="Delete LED"
         message="Are you sure you want to delete this LED system?"

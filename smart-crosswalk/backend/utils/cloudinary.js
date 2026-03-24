@@ -1,21 +1,12 @@
 import { v2 as cloudinary } from "cloudinary";
 
-function configureCloudinary() {
-  const cloudName = process.env.CLOUDINARY_CLOUD_NAME;
-  const apiKey = process.env.CLOUDINARY_API_KEY;
-  const apiSecret = process.env.CLOUDINARY_API_SECRET;
-
-  if (!cloudName || !apiKey || !apiSecret) {
-    throw new Error("Cloudinary credentials are missing in environment variables");
-  }
-
-  cloudinary.config({
-    cloud_name: cloudName,
-    api_key: apiKey,
-    api_secret: apiSecret,
-    secure: true,
-  });
-}
+// Configure once at startup — credentials come from environment variables.
+cloudinary.config({
+  cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
+  api_key: process.env.CLOUDINARY_API_KEY,
+  api_secret: process.env.CLOUDINARY_API_SECRET,
+  secure: true,
+});
 
 export function isCloudinaryUrl(url) {
   if (!url) return false;
@@ -56,7 +47,6 @@ export async function deleteCloudinaryAssetByUrl(url) {
     throw new Error("Could not extract Cloudinary public_id from imageUrl");
   }
 
-  configureCloudinary();
   const result = await cloudinary.uploader.destroy(publicId, {
     resource_type: "image",
     invalidate: true,

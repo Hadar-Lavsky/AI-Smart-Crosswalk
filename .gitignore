@@ -12,3 +12,14 @@ Thumbs.db
 
 # Node
 node_modules/
+
+# Python
+.venv/
+venv/
+__pycache__/
+*.pyc
+*.pyo
+
+# AI temporary files
+backend/ai/*_report.json
+backend/ai/mocks_img_output/

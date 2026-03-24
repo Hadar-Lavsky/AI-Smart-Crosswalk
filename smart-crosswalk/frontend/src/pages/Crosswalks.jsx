@@ -8,6 +8,7 @@ import { GenericDetailCard } from '../components/common/GenericDetailCard';
 import { CrosswalkDialog, CrosswalkEditDialog, useCrosswalks } from '../features/crosswalks';
 import { useCameras } from '../features/cameras';
 import { useLEDs } from '../features/leds';
+import { useDialog } from '../hooks';
 
 /**
  * Crosswalks — CRUD list page for crosswalk locations.
@@ -45,10 +46,10 @@ export function Crosswalks() {
   const [submitting, setSubmitting] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
 
-  // Create/Edit dialog state
-  const [formDialog, setFormDialog] = useState({ open: false, item: null });
-  const handleCreate = () => setFormDialog({ open: true, item: null });
-  const closeFormDialog = () => setFormDialog({ open: false, item: null });
+  // Dialog state
+  const formDialog = useDialog();
+  const deleteDialog = useDialog();
+  const editDialog = useDialog();
 
   const handleFormSubmit = async (formData) => {
     setSubmitting(true);
@@ -60,7 +61,7 @@ export function Crosswalks() {
         await createCrosswalk(formData);
         addToast('Crosswalk created successfully', 'success');
       }
-      closeFormDialog();
+      formDialog.close();
     } catch (err) {
       addToast(err.message || 'Error saving crosswalk', 'error');
     } finally {
@@ -68,28 +69,17 @@ export function Crosswalks() {
     }
   };
 
-  // Delete dialog state
-  const [deleteDialog, setDeleteDialog] = useState({ open: false, item: null });
-  const handleDelete = (item) => setDeleteDialog({ open: true, item });
-  const closeDeleteDialog = () => setDeleteDialog({ open: false, item: null });
-
   const handleConfirmDelete = async () => {
     setSubmitting(true);
     try {
       await deleteCrosswalk(deleteDialog.item._id);
       addToast('Crosswalk deleted successfully', 'success');
-      closeDeleteDialog();
+      deleteDialog.close();
     } catch (err) {
       addToast(err.message || 'Error deleting crosswalk', 'error');
     } finally {
       setSubmitting(false);
     }
-  };
-
-  const [editDialog, setEditDialog] = useState({ open: false, crosswalk: null });
-
-  const handleEdit = (crosswalk) => {
-    setEditDialog({ open: true, crosswalk });
   };
 
   const handleCrosswalkClick = useCallback(
@@ -193,7 +183,7 @@ export function Crosswalks() {
           actions={
             <div className="flex items-center gap-3">
               <Badge variant="default">{crosswalks.length} total</Badge>
-              <Button variant="primary" onClick={handleCreate}>
+              <Button variant="primary" onClick={formDialog.openCreate}>
                 ➕ Add Crosswalk
               </Button>
             </div>
@@ -217,8 +207,8 @@ export function Crosswalks() {
         <GenericList
           type="crosswalk"
           data={filtered}
-          onEdit={handleEdit}
-          onDelete={handleDelete}
+          onEdit={editDialog.openWith}
+          onDelete={deleteDialog.openWith}
           onClick={handleCrosswalkClick}
           hasMore={hasMore}
           onLoadMore={loadMore}
@@ -235,7 +225,7 @@ export function Crosswalks() {
       <CrosswalkDialog
         open={formDialog.open}
         item={formDialog.item}
-        onClose={closeFormDialog}
+        onClose={formDialog.close}
         onSubmit={handleFormSubmit}
         loading={submitting}
         cameras={cameras}
@@ -244,8 +234,8 @@ export function Crosswalks() {
 
       <CrosswalkEditDialog
         open={editDialog.open}
-        item={editDialog.crosswalk}
-        onClose={() => setEditDialog({ open: false, crosswalk: null })}
+        item={editDialog.item}
+        onClose={editDialog.close}
         loading={submitting}
         cameras={cameras}
         leds={leds}
@@ -260,7 +250,7 @@ export function Crosswalks() {
 
       <ConfirmDialog
         open={deleteDialog.open}
-        onClose={closeDeleteDialog}
+        onClose={deleteDialog.close}
         onConfirm={handleConfirmDelete}
         title="Delete Crosswalk"
         message={`Are you sure you want to delete the crosswalk at ${deleteDialog.item?.location?.city}, ${deleteDialog.item?.location?.street}?`}

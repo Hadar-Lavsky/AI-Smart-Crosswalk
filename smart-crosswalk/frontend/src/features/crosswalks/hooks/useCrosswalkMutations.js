@@ -23,7 +23,7 @@ export function useCrosswalkMutations() {
 
   const updateMutation = useMutation({
     mutationFn: ({ id, data }) => crosswalksApi.update(id, data),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: queryKeys.crosswalks.all }),
+    onSuccess: invalidateCrosswalks,
   });
 
   const deleteMutation = useMutation({
