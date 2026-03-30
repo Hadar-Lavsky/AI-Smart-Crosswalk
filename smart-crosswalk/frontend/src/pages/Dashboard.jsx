@@ -31,6 +31,10 @@ import { useDialog } from "../hooks";
  * Route: `/`
  */
 export function Dashboard() {
+  // ─────────────────────────────────────────────────────────────
+  // Data Fetching
+  // ─────────────────────────────────────────────────────────────
+
   const { stats: alertStats } = useAlertStats();
   const { stats: crosswalkStats } = useCrosswalkStats();
 
@@ -40,13 +44,21 @@ export function Dashboard() {
   const { addToast } = useToast();
   const [showDevices, setShowDevices] = useState(false);
 
-  // Camera CRUD dialog state
+  // ─────────────────────────────────────────────────────────────
+  // Dialog State
+  // ─────────────────────────────────────────────────────────────
+
   const cameraForm = useDialog();
   const cameraDeleteDialog = useDialog();
-  const [cameraSubmitting, setCameraSubmitting] = useState(false);
+  const ledForm = useDialog();
+  const ledDeleteDialog = useDialog();
+
+  // ─────────────────────────────────────────────────────────────
+  // Event Handlers
+  // ─────────────────────────────────────────────────────────────
 
   const handleCameraSubmit = async (formData) => {
-    setCameraSubmitting(true);
+    cameraForm.setSubmitting(true);
     try {
       if (cameraForm.item) {
         await updateCameraStatus(cameraForm.item._id, formData.status);
@@ -58,52 +70,43 @@ export function Dashboard() {
       cameraForm.close();
     } catch (err) {
       addToast(err.message || "Error saving camera", "error");
-    } finally {
-      setCameraSubmitting(false);
+      cameraForm.setSubmitting(false);
     }
   };
 
   const handleCameraConfirmDelete = async () => {
-    setCameraSubmitting(true);
+    cameraDeleteDialog.setSubmitting(true);
     try {
       await deleteCamera(cameraDeleteDialog.item._id);
       addToast("Camera deleted successfully", "success");
       cameraDeleteDialog.close();
     } catch (err) {
       addToast(err.message || "Error deleting camera", "error");
-    } finally {
-      setCameraSubmitting(false);
+      cameraDeleteDialog.setSubmitting(false);
     }
   };
 
-  // LED CRUD dialog state
-  const ledForm = useDialog();
-  const ledDeleteDialog = useDialog();
-  const [ledSubmitting, setLEDSubmitting] = useState(false);
-
   const handleLEDSubmit = async (formData) => {
-    setLEDSubmitting(true);
+    ledForm.setSubmitting(true);
     try {
       await createLED(formData);
       addToast("LED created successfully", "success");
       ledForm.close();
     } catch (err) {
       addToast(err.message || "Error saving LED", "error");
-    } finally {
-      setLEDSubmitting(false);
+      ledForm.setSubmitting(false);
     }
   };
 
   const handleLEDConfirmDelete = async () => {
-    setLEDSubmitting(true);
+    ledDeleteDialog.setSubmitting(true);
     try {
       await deleteLED(ledDeleteDialog.item._id);
       addToast("LED deleted successfully", "success");
       ledDeleteDialog.close();
     } catch (err) {
       addToast(err.message || "Error deleting LED", "error");
-    } finally {
-      setLEDSubmitting(false);
+      ledDeleteDialog.setSubmitting(false);
     }
   };
 
@@ -215,7 +218,7 @@ export function Dashboard() {
         item={cameraForm.item}
         onClose={cameraForm.close}
         onSubmit={handleCameraSubmit}
-        loading={cameraSubmitting}
+        loading={cameraForm.submitting}
       />
       <ConfirmDialog
         open={cameraDeleteDialog.open}
@@ -226,7 +229,7 @@ export function Dashboard() {
         confirmText="Delete"
         cancelText="Cancel"
         variant="danger"
-        loading={cameraSubmitting}
+        loading={cameraDeleteDialog.submitting}
       />
 
       <LEDDialog
@@ -234,7 +237,7 @@ export function Dashboard() {
         item={ledForm.item}
         onClose={ledForm.close}
         onSubmit={handleLEDSubmit}
-        loading={ledSubmitting}
+        loading={ledForm.submitting}
       />
       <ConfirmDialog
         open={ledDeleteDialog.open}
@@ -245,7 +248,7 @@ export function Dashboard() {
         confirmText="Delete"
         cancelText="Cancel"
         variant="danger"
-        loading={ledSubmitting}
+        loading={ledDeleteDialog.submitting}
       />
     </div>
   );

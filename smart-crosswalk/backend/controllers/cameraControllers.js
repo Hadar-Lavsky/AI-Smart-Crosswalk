@@ -1,5 +1,10 @@
 import Camera from "../models/Camera.js";
 import Crosswalk from "../models/Crosswalk.js";
+import { notFound } from "./controllerHelpers.js";
+
+// ─────────────────────────────────────────────────────────────────
+// CRUD Operations
+// ─────────────────────────────────────────────────────────────────
 
 // GET /api/cameras - Get all cameras
 export async function getAllCameras(req, res, next) {
@@ -21,15 +26,9 @@ export async function getCameraById(req, res, next) {
   try {
     const camera = await Camera.findById(req.params.id);
 
-    if (!camera) {
-      res.status(404);
-      throw new Error("Camera not found");
-    }
+    if (!camera) notFound(res, "Camera not found");
 
-    res.json({
-      success: true,
-      data: camera,
-    });
+    res.json({ success: true, data: camera });
   } catch (error) {
     next(error);
   }
@@ -39,11 +38,7 @@ export async function getCameraById(req, res, next) {
 export async function createCamera(req, res, next) {
   try {
     const camera = await Camera.create(req.body);
-
-    res.status(201).json({
-      success: true,
-      data: camera,
-    });
+    res.status(201).json({ success: true, data: camera });
   } catch (error) {
     next(error);
   }
@@ -60,15 +55,9 @@ export async function updateCameraStatus(req, res, next) {
       { new: true, runValidators: true }
     );
 
-    if (!camera) {
-      res.status(404);
-      throw new Error("Camera not found");
-    }
+    if (!camera) notFound(res, "Camera not found");
 
-    res.json({
-      success: true,
-      data: camera,
-    });
+    res.json({ success: true, data: camera });
   } catch (error) {
     next(error);
   }
@@ -77,7 +66,6 @@ export async function updateCameraStatus(req, res, next) {
 // DELETE /api/cameras/:id - Delete camera
 export async function deleteCamera(req, res, next) {
   try {
-    // Check if camera is linked to any crosswalk
     const linkedCrosswalk = await Crosswalk.findOne({ cameraId: req.params.id });
     if (linkedCrosswalk) {
       res.status(400);
@@ -86,15 +74,9 @@ export async function deleteCamera(req, res, next) {
 
     const camera = await Camera.findByIdAndDelete(req.params.id);
 
-    if (!camera) {
-      res.status(404);
-      throw new Error("Camera not found");
-    }
+    if (!camera) notFound(res, "Camera not found");
 
-    res.json({
-      success: true,
-      message: "Camera deleted successfully",
-    });
+    res.json({ success: true, message: "Camera deleted successfully" });
   } catch (error) {
     next(error);
   }

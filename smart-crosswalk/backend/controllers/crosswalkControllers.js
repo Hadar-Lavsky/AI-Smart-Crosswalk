@@ -10,10 +10,18 @@ import {
   notFound,
 } from "./controllerHelpers.js";
 
+// ─────────────────────────────────────────────────────────────────
+// Helper
+// ─────────────────────────────────────────────────────────────────
+
 /** Populate cameraId and ledId refs on any Crosswalk query. */
 function withDevices(query) {
   return query.populate("cameraId").populate("ledId");
 }
+
+// ─────────────────────────────────────────────────────────────────
+// CRUD Operations
+// ─────────────────────────────────────────────────────────────────
 
 // GET /api/crosswalks - Get all crosswalks (paginated)
 export async function getAllCrosswalks(req, res, next) {
@@ -129,6 +137,10 @@ export async function deleteCrosswalk(req, res, next) {
   }
 }
 
+// ─────────────────────────────────────────────────────────────────
+// Device Linking Operations
+// ─────────────────────────────────────────────────────────────────
+
 // PATCH /api/crosswalks/:id/camera - Link camera to crosswalk
 export async function linkCamera(req, res, next) {
   try {
@@ -214,6 +226,10 @@ export async function unlinkLED(req, res, next) {
     next(error);
   }
 }
+
+// ─────────────────────────────────────────────────────────────────
+// Crosswalk Alerts & Statistics
+// ─────────────────────────────────────────────────────────────────
 
 // GET /api/crosswalks/:id/alerts - Get alerts for specific crosswalk
 export async function getCrosswalkAlerts(req, res, next) {

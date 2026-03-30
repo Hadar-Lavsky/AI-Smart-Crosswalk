@@ -23,6 +23,10 @@ import { useDialog } from "../hooks";
  * Route: `/alerts`
  */
 export function Alerts() {
+  // ─────────────────────────────────────────────────────────────
+  // Data Fetching
+  // ─────────────────────────────────────────────────────────────
+
   const {
     alerts,
     stats,
@@ -39,18 +43,29 @@ export function Alerts() {
 
   const { addToast } = useToast();
 
+  // ─────────────────────────────────────────────────────────────
+  // Filter State
+  // ─────────────────────────────────────────────────────────────
+
   const [filters, setFilters] = useState({
     dangerLevel: "all",
     crosswalkSearch: "",
     dateRange: { startDate: null, endDate: null },
   });
 
-  // Create/Edit dialog state
+  // ─────────────────────────────────────────────────────────────
+  // Dialog State
+  // ─────────────────────────────────────────────────────────────
+
   const formDialog = useDialog();
-  const [submitting, setSubmitting] = useState(false);
+  const deleteDialog = useDialog();
+
+  // ─────────────────────────────────────────────────────────────
+  // Event Handlers
+  // ─────────────────────────────────────────────────────────────
 
   const handleFormSubmit = async (formData) => {
-    setSubmitting(true);
+    formDialog.setSubmitting(true);
     try {
       if (formDialog.item) {
         await updateAlert(formDialog.item._id, formData);
@@ -62,26 +77,25 @@ export function Alerts() {
       formDialog.close();
     } catch (err) {
       addToast(err.message || "Error saving alert", "error");
-    } finally {
-      setSubmitting(false);
+      formDialog.setSubmitting(false);
     }
   };
 
-  // Delete dialog state
-  const deleteDialog = useDialog();
-
   const handleConfirmDelete = async () => {
-    setSubmitting(true);
+    deleteDialog.setSubmitting(true);
     try {
       await deleteAlert(deleteDialog.item._id);
       addToast("Alert deleted successfully", "success");
       deleteDialog.close();
     } catch (err) {
       addToast(err.message || "Error deleting alert", "error");
-    } finally {
-      setSubmitting(false);
+      deleteDialog.setSubmitting(false);
     }
   };
+
+  // ─────────────────────────────────────────────────────────────
+  // Filtering Logic
+  // ─────────────────────────────────────────────────────────────
 
   const filterAlert = (alert) => {
     if (
@@ -117,7 +131,10 @@ export function Alerts() {
 
   const filteredAlerts = alerts.filter(filterAlert);
 
-  // Stats
+  // ─────────────────────────────────────────────────────────────
+  // Stats Configuration
+  // ─────────────────────────────────────────────────────────────
+
   const alertStats = [
     {
       title: "Total Alerts",
@@ -210,7 +227,7 @@ export function Alerts() {
         item={formDialog.item}
         onClose={formDialog.close}
         onSubmit={handleFormSubmit}
-        loading={submitting}
+        loading={formDialog.submitting}
         crosswalks={crosswalks}
       />
 
@@ -223,7 +240,7 @@ export function Alerts() {
         confirmText="Delete"
         cancelText="Cancel"
         variant="danger"
-        loading={submitting}
+        loading={deleteDialog.submitting}
       />
     </>
   );

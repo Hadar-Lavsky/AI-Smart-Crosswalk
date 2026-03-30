@@ -14,6 +14,10 @@ import {
   notFound,
 } from "./controllerHelpers.js";
 
+// ─────────────────────────────────────────────────────────────────
+// CRUD Operations
+// ─────────────────────────────────────────────────────────────────
+
 // GET /api/alerts - Get all alerts (paginated)
 export async function getAllAlerts(req, res, next) {
   try {
@@ -91,12 +95,9 @@ export async function createAlert(req, res, next) {
 
     if (imageUrl) alertData.imageUrl = imageUrl;
 
-    const doc = new Alert(alertData);
-    const alert = await doc.save();
-    // Re-read with populate so realtime clients get full related objects.
-    const populatedAlert = await Alert.findById(alert._id).populate(alertCrosswalkPopulate);
+    const alert = await Alert.create(alertData);
+    const populatedAlert = await alert.populate(alertCrosswalkPopulate);
 
-    // Push the new alert immediately to Socket.IO listeners.
     emitAlertRealtime(populatedAlert);
 
     res.status(201).json({
@@ -128,22 +129,23 @@ export async function updateAlertById(req, res, next) {
 // DELETE /api/alerts/:id - Delete alert
 export async function deleteAlertById(req, res, next) {
   try {
-    const alert = await Alert.findById(req.params.id);
+    const alert = await Alert.findByIdAndDelete(req.params.id);
 
     if (!alert) notFound(res, "Alert not found");
 
-    // Keep DB and cloud storage consistent for Cloudinary-backed alerts.
     if (isCloudinaryUrl(alert.imageUrl)) {
       await deleteCloudinaryAssetByUrl(alert.imageUrl);
     }
-
-    await Alert.findByIdAndDelete(req.params.id);
 
     res.json({ success: true, message: "Alert deleted successfully" });
   } catch (error) {
     next(error);
   }
 }
+
+// ─────────────────────────────────────────────────────────────────
+// Statistics
+// ─────────────────────────────────────────────────────────────────
 
 // GET /api/alerts/stats - Get alert statistics
 export async function getStats(req, res, next) {
@@ -160,6 +162,10 @@ export async function getStats(req, res, next) {
     next(error);
   }
 }
+
+// ─────────────────────────────────────────────────────────────────
+// Helper Functions
+// ─────────────────────────────────────────────────────────────────
 
 // --- Helper: find or create crosswalk by location and camera ---
 async function findOrCreateCrosswalk(location, cameraId) {

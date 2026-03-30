@@ -1,6 +1,11 @@
 import LED from "../models/LED.js";
 import Crosswalk from "../models/Crosswalk.js";
 import { requestLEDCommandAck } from "../socket/index.js";
+import { notFound } from "./controllerHelpers.js";
+
+// ─────────────────────────────────────────────────────────────────
+// CRUD Operations
+// ─────────────────────────────────────────────────────────────────
 
 // GET /api/leds - Get all LEDs
 export async function getAllLEDs(req, res, next) {
@@ -22,15 +27,9 @@ export async function getLEDById(req, res, next) {
   try {
     const led = await LED.findById(req.params.id);
 
-    if (!led) {
-      res.status(404);
-      throw new Error("LED not found");
-    }
+    if (!led) notFound(res, "LED not found");
 
-    res.json({
-      success: true,
-      data: led,
-    });
+    res.json({ success: true, data: led });
   } catch (error) {
     next(error);
   }
@@ -40,11 +39,7 @@ export async function getLEDById(req, res, next) {
 export async function createLED(req, res, next) {
   try {
     const led = await LED.create(req.body);
-
-    res.status(201).json({
-      success: true,
-      data: led,
-    });
+    res.status(201).json({ success: true, data: led });
   } catch (error) {
     next(error);
   }
@@ -53,7 +48,6 @@ export async function createLED(req, res, next) {
 // DELETE /api/leds/:id - Delete LED
 export async function deleteLED(req, res, next) {
   try {
-    // Check if LED is linked to any crosswalk
     const linkedCrosswalk = await Crosswalk.findOne({ ledId: req.params.id });
     if (linkedCrosswalk) {
       res.status(400);
@@ -62,19 +56,17 @@ export async function deleteLED(req, res, next) {
 
     const led = await LED.findByIdAndDelete(req.params.id);
 
-    if (!led) {
-      res.status(404);
-      throw new Error("LED not found");
-    }
+    if (!led) notFound(res, "LED not found");
 
-    res.json({
-      success: true,
-      message: "LED deleted successfully",
-    });
+    res.json({ success: true, message: "LED deleted successfully" });
   } catch (error) {
     next(error);
   }
 }
+
+// ─────────────────────────────────────────────────────────────────
+// LED Command Operations
+// ─────────────────────────────────────────────────────────────────
 
 // POST /api/leds/:id/command - Send command to physical LED and wait for ACK
 export async function sendLEDCommand(req, res, next) {
@@ -93,10 +85,7 @@ export async function sendLEDCommand(req, res, next) {
     }
 
     const led = await LED.findById(ledId);
-    if (!led) {
-      res.status(404);
-      throw new Error("LED not found");
-    }
+    if (!led) notFound(res, "LED not found");
 
     let crosswalkId = explicitCrosswalkId;
     if (!crosswalkId) {

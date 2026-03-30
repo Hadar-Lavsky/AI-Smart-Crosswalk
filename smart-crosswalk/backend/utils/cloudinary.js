@@ -1,6 +1,9 @@
 import { v2 as cloudinary } from "cloudinary";
 
-// Configure once at startup — credentials come from environment variables.
+// ─────────────────────────────────────────────────────────────────
+// Cloudinary Configuration
+// ─────────────────────────────────────────────────────────────────
+
 cloudinary.config({
   cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
   api_key: process.env.CLOUDINARY_API_KEY,
@@ -8,6 +11,15 @@ cloudinary.config({
   secure: true,
 });
 
+// ─────────────────────────────────────────────────────────────────
+// URL Validation & Parsing
+// ─────────────────────────────────────────────────────────────────
+
+/**
+ * Check if a URL is a valid Cloudinary asset URL.
+ * @param {string} url - URL to check
+ * @returns {boolean} True if URL is from res.cloudinary.com
+ */
 export function isCloudinaryUrl(url) {
   if (!url) return false;
 
@@ -19,6 +31,11 @@ export function isCloudinaryUrl(url) {
   }
 }
 
+/**
+ * Extract the public_id from a Cloudinary URL.
+ * @param {string} url - Cloudinary URL
+ * @returns {string | null} Public ID without extension, or null if invalid
+ */
 export function extractCloudinaryPublicId(url) {
   if (!isCloudinaryUrl(url)) return null;
 
@@ -41,6 +58,16 @@ export function extractCloudinaryPublicId(url) {
   return withExt.replace(/\.[^/.]+$/, "");
 }
 
+// ─────────────────────────────────────────────────────────────────
+// Asset Management
+// ─────────────────────────────────────────────────────────────────
+
+/**
+ * Delete a Cloudinary asset by its URL.
+ * @param {string} url - Cloudinary asset URL
+ * @returns {Promise<{ publicId: string, status: string }>}
+ * @throws {Error} If public_id extraction fails or deletion fails
+ */
 export async function deleteCloudinaryAssetByUrl(url) {
   const publicId = extractCloudinaryPublicId(url);
   if (!publicId) {

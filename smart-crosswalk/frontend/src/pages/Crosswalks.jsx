@@ -21,6 +21,10 @@ import { useDialog } from '../hooks';
  * Route: `/crosswalks`
  */
 export function Crosswalks() {
+  // ─────────────────────────────────────────────────────────────
+  // Data Fetching
+  // ─────────────────────────────────────────────────────────────
+
   const navigate = useNavigate();
   const {
     crosswalks,
@@ -43,16 +47,22 @@ export function Crosswalks() {
   const { leds, createLED, refetch: refetchLEDs } = useLEDs();
   const { addToast } = useToast();
 
-  const [submitting, setSubmitting] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
 
-  // Dialog state
+  // ─────────────────────────────────────────────────────────────
+  // Dialog State
+  // ─────────────────────────────────────────────────────────────
+
   const formDialog = useDialog();
   const deleteDialog = useDialog();
   const editDialog = useDialog();
 
+  // ─────────────────────────────────────────────────────────────
+  // Event Handlers
+  // ─────────────────────────────────────────────────────────────
+
   const handleFormSubmit = async (formData) => {
-    setSubmitting(true);
+    formDialog.setSubmitting(true);
     try {
       if (formDialog.item) {
         await updateCrosswalk(formDialog.item._id, formData);
@@ -64,21 +74,19 @@ export function Crosswalks() {
       formDialog.close();
     } catch (err) {
       addToast(err.message || 'Error saving crosswalk', 'error');
-    } finally {
-      setSubmitting(false);
+      formDialog.setSubmitting(false);
     }
   };
 
   const handleConfirmDelete = async () => {
-    setSubmitting(true);
+    deleteDialog.setSubmitting(true);
     try {
       await deleteCrosswalk(deleteDialog.item._id);
       addToast('Crosswalk deleted successfully', 'success');
       deleteDialog.close();
     } catch (err) {
       addToast(err.message || 'Error deleting crosswalk', 'error');
-    } finally {
-      setSubmitting(false);
+      deleteDialog.setSubmitting(false);
     }
   };
 
@@ -89,11 +97,14 @@ export function Crosswalks() {
     [navigate],
   );
 
-  // Helper: wraps any async action with loading state, toast feedback, and optional refetch.
+  // ─────────────────────────────────────────────────────────────
+  // Helper: Async Action with Loading & Toast
+  // ─────────────────────────────────────────────────────────────
+
   const withLoading =
     (action, successMsg, errorMsg, refetchFn = refetch) =>
     async (...args) => {
-      setSubmitting(true);
+      editDialog.setSubmitting(true);
       try {
         await action(...args);
         addToast(successMsg, 'success');
@@ -101,7 +112,7 @@ export function Crosswalks() {
       } catch (err) {
         addToast(err.message || errorMsg, 'error');
       } finally {
-        setSubmitting(false);
+        editDialog.setSubmitting(false);
       }
     };
 
@@ -142,6 +153,10 @@ export function Crosswalks() {
     'Error creating LED',
     refetchLEDs,
   );
+
+  // ─────────────────────────────────────────────────────────────
+  // Search & Stats
+  // ─────────────────────────────────────────────────────────────
 
   // Search filter
   const filtered = crosswalks.filter((item) => {
@@ -227,7 +242,7 @@ export function Crosswalks() {
         item={formDialog.item}
         onClose={formDialog.close}
         onSubmit={handleFormSubmit}
-        loading={submitting}
+        loading={formDialog.submitting}
         cameras={cameras}
         leds={leds}
       />
@@ -236,7 +251,7 @@ export function Crosswalks() {
         open={editDialog.open}
         item={editDialog.item}
         onClose={editDialog.close}
-        loading={submitting}
+        loading={editDialog.submitting}
         cameras={cameras}
         leds={leds}
         onUpdate={handleUpdate}
@@ -257,7 +272,7 @@ export function Crosswalks() {
         confirmText="Delete"
         cancelText="Cancel"
         variant="danger"
-        loading={submitting}
+        loading={deleteDialog.submitting}
       />
     </>
   );
