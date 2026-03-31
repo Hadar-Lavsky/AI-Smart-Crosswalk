@@ -23,6 +23,7 @@ model = YOLO('yolov8n-pose.pt')
 script_dir = os.path.dirname(os.path.abspath(__file__))
 input_folder = os.path.join(script_dir, 'mocks_img')
 output_folder = os.path.join(script_dir, 'mocks_img_output')
+os.makedirs(output_folder, exist_ok=True)
 
 #3. procees the folder
 print(f"Processing folder: {input_folder}")
@@ -58,7 +59,7 @@ for filename in os.listdir(input_folder):
             im_array = r.plot(kpt_radius=1, line_width=1) 
             output_path = os.path.join(output_folder, filename)
             cv2.imwrite(output_path, im_array)
-   
-print(f"Processed {filename}")
+
+        print(f"Processed {filename}")
 
 print("All images processed successfully")
