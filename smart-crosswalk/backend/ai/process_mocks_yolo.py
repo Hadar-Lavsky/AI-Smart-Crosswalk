@@ -38,7 +38,7 @@ ADULT_SCORE_KPT_INDICES = (
 CHILD_HEIGHT_FRACTION = 0.20
 KEYPOINT_CONF_THRESHOLD = 0.3
 HAND_LIFT_DISTRACTED_THRESHOLD = 0.25
-MIN_TORSO_HEIGHT_PX = 1e-3
+MIN_TORSO_HEIGHT_PX = 20
 
 IMAGE_EXTS = (".jpg", ".jpeg", ".png", ".webp", ".bmp")
 
@@ -47,9 +47,9 @@ COLOR_DISTRACTED = (0, 255, 255)
 COLOR_SAFE = (0, 255, 0)
 COLOR_TEXT_BG = (40, 40, 40)
 
-LABEL_CHILD = "CHILD - DANGER"
-LABEL_DISTRACTED = "ADULT - DISTRACTED"
-LABEL_SAFE = "ADULT - SAFE"
+LABEL_CHILD = "CHILD  DANGER"
+LABEL_DISTRACTED = "ADULT  DISTRACTED"
+LABEL_SAFE = "ADULT  SAFE"
 
 
 def _to_numpy_xy_conf(kpts_data: Any, det_idx: int) -> tuple[np.ndarray | None, np.ndarray | None]:
@@ -145,8 +145,8 @@ def draw_labeled_box(
 ) -> None:
     cv2.rectangle(img, (x1, y1), (x2, y2), color_bgr, line_thickness)
     font = cv2.FONT_HERSHEY_SIMPLEX
-    font_scale = 0.55
-    thickness = 2
+    font_scale = 0.3
+    thickness = 1
     (tw, th), baseline = cv2.getTextSize(label, font, font_scale, thickness)
     ty = max(y1 - 4, th + 6)
     cv2.rectangle(
