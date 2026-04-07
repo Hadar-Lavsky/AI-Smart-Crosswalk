@@ -3,14 +3,15 @@ Batch-run YOLOv8-pose on images in mocks_img/ and save annotated frames to mocks
 
 Traffic-light safety:
   - CHILD: bbox height < 20% of image height → red, "CHILD - DANGER".
-  - ADULT: torso-relative hand lift ratio vs hips; ratio > 0.25 → yellow "ADULT - DISTRACTED", else green "ADULT - SAFE".
-    Missing/low-confidence keypoints (5,6,9,10,11,12) → default SAFE for adults.
+  - CHILD + verified hand-holding with a nearby adult → orange, "CHILD - LINKED" (see linking passes below).
+  - ADULT: torso-relative hand lift ratio; ratio > 0.25 → yellow "ADULT - DISTRACTED", else green "ADULT - SAFE".
 """
 
 from __future__ import annotations
 
 import os
 import sys
+from dataclasses import dataclass
 from typing import Any
 
 import cv2
@@ -25,7 +26,6 @@ KPT_RIGHT_WRIST = 10
 KPT_LEFT_HIP = 11
 KPT_RIGHT_HIP = 12
 
-# Indices required for adult distraction score (all must be conf >= threshold)
 ADULT_SCORE_KPT_INDICES = (
     KPT_LEFT_SHOULDER,
     KPT_RIGHT_SHOULDER,
@@ -40,16 +40,32 @@ KEYPOINT_CONF_THRESHOLD = 0.3
 HAND_LIFT_DISTRACTED_THRESHOLD = 0.25
 MIN_TORSO_HEIGHT_PX = 20
 
+# Protected child (hand-holding): Phase 3 — both wrists must be strictly > 0.5, d < 15 px
+WRIST_LINK_CONF_THRESHOLD = 0.5
+MAX_GRIP_DISTANCE_PX = 15.0
+
 IMAGE_EXTS = (".jpg", ".jpeg", ".png", ".webp", ".bmp")
 
 COLOR_CHILD = (0, 0, 255)
+COLOR_CHILD_LINKED = (0, 165, 255)  # orange BGR
 COLOR_DISTRACTED = (0, 255, 255)
 COLOR_SAFE = (0, 255, 0)
 COLOR_TEXT_BG = (40, 40, 40)
+LINE_NEON_MARKER = (0, 255, 255)  # neon / marker yellow BGR
 
-LABEL_CHILD = "CHILD  DANGER"
-LABEL_DISTRACTED = "ADULT  DISTRACTED"
-LABEL_SAFE = "ADULT  SAFE"
+LABEL_CHILD = "CHILD - DANGER"
+LABEL_CHILD_LINKED = "CHILD - LINKED"
+LABEL_DISTRACTED = "ADULT - DISTRACTED"
+LABEL_SAFE = "ADULT - SAFE"
+
+
+@dataclass
+class PersonPass1:
+    """One detection after height-based child vs adult split (Pass 1)."""
+    xyxy: np.ndarray
+    is_child: bool
+    xy: np.ndarray | None
+    conf: np.ndarray | None
 
 
 def _to_numpy_xy_conf(kpts_data: Any, det_idx: int) -> tuple[np.ndarray | None, np.ndarray | None]:
@@ -80,8 +96,24 @@ def bbox_height_px(xyxy: np.ndarray) -> float:
     return float(xyxy[3] - xyxy[1])
 
 
+def bbox_center_x(xyxy: np.ndarray) -> float:
+    return float((xyxy[0] + xyxy[2]) / 2.0)
+
+
+def bbox_intersection_area(a: np.ndarray, b: np.ndarray) -> float:
+    """Axis-aligned intersection area; 0 if disjoint (Phase 1: no overlap → skip linking)."""
+    ax1, ay1, ax2, ay2 = map(float, a)
+    bx1, by1, bx2, by2 = map(float, b)
+    ix1 = max(ax1, bx1)
+    iy1 = max(ay1, by1)
+    ix2 = min(ax2, bx2)
+    iy2 = min(ay2, by2)
+    if ix2 <= ix1 or iy2 <= iy1:
+        return 0.0
+    return float((ix2 - ix1) * (iy2 - iy1))
+
+
 def adult_keypoints_sufficient(conf: np.ndarray) -> bool:
-    """True if all joints needed for distraction score meet confidence threshold."""
     for i in ADULT_SCORE_KPT_INDICES:
         if i >= len(conf) or conf[i] < KEYPOINT_CONF_THRESHOLD:
             return False
@@ -89,18 +121,12 @@ def adult_keypoints_sufficient(conf: np.ndarray) -> bool:
 
 
 def torso_height_L(xy: np.ndarray) -> float:
-    """|avg(shoulder y) - avg(hip y)| in pixels."""
     sy = (float(xy[KPT_LEFT_SHOULDER, 1]) + float(xy[KPT_RIGHT_SHOULDER, 1])) / 2.0
     hy = (float(xy[KPT_LEFT_HIP, 1]) + float(xy[KPT_RIGHT_HIP, 1])) / 2.0
     return abs(sy - hy)
 
 
 def max_hand_lift_ratio(xy: np.ndarray) -> float | None:
-    """
-    Hand lift ratio = (avg_hip_y - wrist_y) / L with L = torso height.
-    Y=0 at top; larger hip_y - wrist_y means hand is higher in the frame.
-    Returns None if L is degenerate.
-    """
     L = torso_height_L(xy)
     if L < MIN_TORSO_HEIGHT_PX:
         return None
@@ -110,27 +136,105 @@ def max_hand_lift_ratio(xy: np.ndarray) -> float | None:
     return max(r_l, r_r)
 
 
-def classify_person(
-    bbox_h: float,
-    img_h: int,
+def classify_adult(
     xy: np.ndarray | None,
     conf: np.ndarray | None,
 ) -> tuple[str, tuple[int, int, int]]:
-    """Return (label, bgr_color)."""
-    child_px = CHILD_HEIGHT_FRACTION * float(img_h)
-    if bbox_h < child_px:
-        return LABEL_CHILD, COLOR_CHILD
-
     if xy is None or conf is None or not adult_keypoints_sufficient(conf):
         return LABEL_SAFE, COLOR_SAFE
-
     ratio = max_hand_lift_ratio(xy)
     if ratio is None:
         return LABEL_SAFE, COLOR_SAFE
-
     if ratio > HAND_LIFT_DISTRACTED_THRESHOLD:
         return LABEL_DISTRACTED, COLOR_DISTRACTED
     return LABEL_SAFE, COLOR_SAFE
+
+
+def opposite_hands_indices(cx_adult: float, cx_child: float) -> tuple[int, int]:
+    """
+    Phase 2 — target pair (adult wrist idx, child wrist idx).
+    A: X_adult < X_child → adult R wrist (10), child L wrist (9).
+    B: X_adult > X_child → adult L wrist (9), child R wrist (10).
+    Equal X centers: use Scenario A (deterministic tie-break; spec covers only < and >).
+    """
+    if cx_adult < cx_child:
+        return KPT_RIGHT_WRIST, KPT_LEFT_WRIST
+    if cx_adult > cx_child:
+        return KPT_LEFT_WRIST, KPT_RIGHT_WRIST
+    return KPT_RIGHT_WRIST, KPT_LEFT_WRIST
+
+
+def try_validate_hand_link(adult: PersonPass1, child: PersonPass1) -> tuple[tuple[int, int], tuple[int, int]] | None:
+    """
+    Preconditions: caller ensures child/adult bboxes already overlap (Phase 1 ROI).
+    Phase 2–3: opposite hands, conf > 0.5, Euclidean d < 15.
+    Returns ((xa, ya), (xc, yc)) for drawing. None if not validated.
+    """
+    if adult.xy is None or adult.conf is None or child.xy is None or child.conf is None:
+        return None
+
+    cx_a = bbox_center_x(adult.xyxy)
+    cx_c = bbox_center_x(child.xyxy)
+    ia, ic = opposite_hands_indices(cx_a, cx_c)
+
+    if ia >= len(adult.conf) or ic >= len(child.conf):
+        return None
+    # Strictly greater than 0.5 per spec
+    if not (adult.conf[ia] > WRIST_LINK_CONF_THRESHOLD and child.conf[ic] > WRIST_LINK_CONF_THRESHOLD):
+        return None
+
+    ax, ay = float(adult.xy[ia, 0]), float(adult.xy[ia, 1])
+    cx, cy = float(child.xy[ic, 0]), float(child.xy[ic, 1])
+    d = float(np.sqrt((cx - ax) ** 2 + (cy - ay) ** 2))
+    if d >= MAX_GRIP_DISTANCE_PX:
+        return None
+
+    return (int(round(ax)), int(round(ay))), (int(round(cx)), int(round(cy)))
+
+
+def pass2_link_children(
+    people: list[PersonPass1],
+    child_indices: list[int],
+    adult_indices: list[int],
+) -> tuple[set[int], list[tuple[tuple[int, int], tuple[int, int]] | None]]:
+    """
+    For each child, only consider overlapping adults; first validating adult wins.
+    Returns linked child indices and line endpoints per detection index (None if not linked).
+    """
+    n = len(people)
+    linked: set[int] = set()
+    lines: list[tuple[tuple[int, int], tuple[int, int]] | None] = [None] * n
+
+    for ci in child_indices:
+        if not people[ci].is_child:
+            continue
+        child = people[ci]
+        # ROI: only adults whose box overlaps this child (skip distance work otherwise)
+        overlapping_adults = [
+            ai
+            for ai in adult_indices
+            if bbox_intersection_area(people[ai].xyxy, child.xyxy) > 0.0
+        ]
+        for ai in overlapping_adults:
+            pts = try_validate_hand_link(people[ai], child)
+            if pts is not None:
+                linked.add(ci)
+                lines[ci] = pts
+                break
+
+    return linked, lines
+
+
+def final_label_and_color(
+    idx: int,
+    person: PersonPass1,
+    linked_children: set[int],
+) -> tuple[str, tuple[int, int, int]]:
+    if person.is_child:
+        if idx in linked_children:
+            return LABEL_CHILD_LINKED, COLOR_CHILD_LINKED
+        return LABEL_CHILD, COLOR_CHILD
+    return classify_adult(person.xy, person.conf)
 
 
 def draw_labeled_box(
@@ -145,8 +249,8 @@ def draw_labeled_box(
 ) -> None:
     cv2.rectangle(img, (x1, y1), (x2, y2), color_bgr, line_thickness)
     font = cv2.FONT_HERSHEY_SIMPLEX
-    font_scale = 0.3
-    thickness = 1
+    font_scale = 0.55
+    thickness = 2
     (tw, th), baseline = cv2.getTextSize(label, font, font_scale, thickness)
     ty = max(y1 - 4, th + 6)
     cv2.rectangle(
@@ -161,7 +265,10 @@ def draw_labeled_box(
 
 def process_frame(r: Any, img_h: int) -> tuple[np.ndarray, list[str]]:
     """
-    Draw skeletons then custom safety boxes. Returns (annotated_bgr, per-person status labels).
+    Pass 1: classify each detection as child/adult; gather bbox + keypoints into `people`,
+            plus explicit `child_indices` and `adult_indices` lists.
+    Pass 2: for each child, overlapping adults only → opposite hands → conf + distance.
+    Pass 3: skeleton, boxes/labels, neon wrist–wrist lines for LINKED children.
     """
     annotated = r.plot(
         boxes=False,
@@ -185,18 +292,41 @@ def process_frame(r: Any, img_h: int) -> tuple[np.ndarray, list[str]]:
 
     kpts_data = r.keypoints.data if r.keypoints is not None else None
 
+    # --- Pass 1: gathering + two index lists (children / adults) ---
+    people: list[PersonPass1] = []
+    child_indices: list[int] = []
+    adult_indices: list[int] = []
+
     for i in range(len(boxes)):
         xyxy = xyxy_all[i]
-        x1, y1, x2, y2 = [int(round(v)) for v in xyxy]
         h_px = bbox_height_px(xyxy)
-
+        is_ch = h_px < CHILD_HEIGHT_FRACTION * float(img_h)
         xy, conf = (None, None)
         if kpts_data is not None:
             xy, conf = _to_numpy_xy_conf(kpts_data, i)
+        people.append(PersonPass1(xyxy=xyxy, is_child=is_ch, xy=xy, conf=conf))
+        if is_ch:
+            child_indices.append(i)
+        else:
+            adult_indices.append(i)
 
-        label, color = classify_person(h_px, img_h, xy, conf)
+    # --- Pass 2: linking (overlap gates distance math) ---
+    linked_children, line_segments = pass2_link_children(people, child_indices, adult_indices)
+
+    # --- Pass 3: boxes + labels, then neon lines ---
+    for i in range(len(people)):
+        p = people[i]
+        xyxy = p.xyxy
+        x1, y1, x2, y2 = [int(round(v)) for v in xyxy]
+        label, color = final_label_and_color(i, p, linked_children)
         statuses.append(label)
         draw_labeled_box(annotated, x1, y1, x2, y2, label, color)
+
+    for seg in line_segments:
+        if seg is None:
+            continue
+        pa, pc = seg
+        cv2.line(annotated, pa, pc, LINE_NEON_MARKER, 2, cv2.LINE_AA)
 
     return annotated, statuses
 
@@ -233,13 +363,17 @@ def main() -> None:
         print(f"Failed to load model {model_path}: {e}", file=sys.stderr)
         sys.exit(1)
 
-    print("YOLOv8-pose traffic-light batch")
+    print("YOLOv8-pose traffic-light + CHILD - LINKED (hand-holding)")
     print(f"  Input:  {input_folder}")
     print(f"  Output: {output_folder}")
     print(
-        f"  Child if bbox_h < {CHILD_HEIGHT_FRACTION:.0%} image height; "
-        f"adult distraction if hand-lift ratio > {HAND_LIFT_DISTRACTED_THRESHOLD} "
-        f"(keypoints {list(ADULT_SCORE_KPT_INDICES)} conf ≥ {KEYPOINT_CONF_THRESHOLD})."
+        f"  Link: bbox overlap + opposite wrists (X-adult vs X-child) + "
+        f"wrist conf > {WRIST_LINK_CONF_THRESHOLD} + distance < {MAX_GRIP_DISTANCE_PX} px."
+    )
+    print(
+        f"  Child: bbox_h < {CHILD_HEIGHT_FRACTION:.0%} image height | "
+        f"Adult distraction: hand-lift ratio > {HAND_LIFT_DISTRACTED_THRESHOLD} "
+        f"(kpts {list(ADULT_SCORE_KPT_INDICES)} conf ≥ {KEYPOINT_CONF_THRESHOLD})."
     )
     print()
 
