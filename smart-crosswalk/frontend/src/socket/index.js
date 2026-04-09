@@ -18,6 +18,7 @@ function resolveSocketUrl() {
   return window.location.origin;
 }
 
+// Connection: create a client connection to the /traffic namespace on the server.
 export const trafficSocket = io(`${resolveSocketUrl()}/traffic`, {
   path: "/socket.io",
   withCredentials: true,
@@ -27,6 +28,7 @@ export const trafficSocket = io(`${resolveSocketUrl()}/traffic`, {
   reconnectionDelay: 1000,
   reconnectionDelayMax: 30000,
   randomizationFactor: 0.5,
+  // Real-time Transport: allow HTTP long-polling first, then upgrade to WebSocket.
   transports: ["polling", "websocket"],
   upgrade: true,
 });

@@ -38,23 +38,31 @@ export function initSocket(server, options = {}) {
     return ioInstance;
   }
 
+  // Connection: bind Socket.IO to the existing HTTP server.
   ioInstance = new Server(server, options);
 
+  // On (Listener): runs for every new client connection on the root namespace.
   ioInstance.on("connection", (socket) => {
+    // Socket: this object represents one connected client.
     console.log(`Socket connected on / : ${socket.id}`);
 
+    // Disconnect: listener triggered when the client connection closes.
     socket.on("disconnect", () => {
       console.log(`Socket disconnected on / : ${socket.id}`);
     });
   });
 
+  // Namespace: isolate traffic-related communication under /traffic.
   const traffic = ioInstance.of(TRAFFIC_NAMESPACE);
 
+  // Connection + On (Listener): handles clients that connect to /traffic.
   traffic.on("connection", (socket) => {
     console.log(`Socket connected on ${TRAFFIC_NAMESPACE}: ${socket.id}`);
 
+    // Event: custom event sent by clients that want dashboard updates.
     socket.on("subscribe:dashboard", (ack) => {
       // Dashboard clients join one shared room for global alert updates.
+      // Rooms: group sockets so server can target only subscribed clients.
       socket.join(DASHBOARD_ROOM);
       if (typeof ack === "function") {
         ack({ success: true, room: DASHBOARD_ROOM });
@@ -71,6 +79,7 @@ export function initSocket(server, options = {}) {
       }
 
       const room = toCrosswalkRoom(crosswalkId);
+      // Rooms: subscribe this socket to a specific crosswalk stream.
       socket.join(room);
 
       if (typeof ack === "function") {
@@ -83,10 +92,12 @@ export function initSocket(server, options = {}) {
       const ledId = parseCrosswalkId(payload?.ledId);
 
       if (ledId) {
+        // Rooms: LED devices can receive LED-specific commands.
         socket.join(toLedRoom(ledId));
       }
 
       if (crosswalkId) {
+        // Rooms: crosswalk LED group for command fan-out.
         socket.join(toCrosswalkLEDRoom(crosswalkId));
       }
 
@@ -99,6 +110,7 @@ export function initSocket(server, options = {}) {
       }
     });
 
+    // Disconnect: cleanup/debug point for traffic namespace clients.
     socket.on("disconnect", () => {
       console.log(`Socket disconnected on ${TRAFFIC_NAMESPACE}: ${socket.id}`);
     });
@@ -118,12 +130,13 @@ export function emitAlertRealtime(alert) {
     data: alert,
   };
 
-  // Broadcast to all root clients (kept for compatibility with existing listeners).
+  // Emit: send event data from server to connected clients.
+  // Broadcast: global fan-out to all clients on root namespace.
   ioInstance.emit("alert:new", payload);
 
   const crosswalkId = parseCrosswalkId(alert?.crosswalkId);
   if (crosswalkId) {
-    // Crosswalk room gets only alerts related to this crosswalk.
+    // Rooms + Emit: target one room instead of sending to everyone.
     traffic.to(toCrosswalkRoom(crosswalkId)).emit("alert:new", payload);
   }
 

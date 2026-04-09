@@ -16,6 +16,7 @@ export function SocketBridge() {
   useEffect(() => {
     const onConnect = () => {
       // Join the server dashboard room to receive global alert events.
+      // Emit: client sends an event to ask server-side room subscription.
       trafficSocket.emit("subscribe:dashboard", (response) => {
         if (!response?.success) {
           console.warn("Dashboard subscribe failed", response);
@@ -113,6 +114,7 @@ export function SocketBridge() {
       }
     };
 
+    // On (Listener): client listens for server and transport lifecycle events.
     trafficSocket.on("connect", onConnect);
     trafficSocket.on("disconnect", onDisconnect);
     trafficSocket.on("alert:new", onNewAlert);
