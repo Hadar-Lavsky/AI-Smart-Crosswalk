@@ -248,19 +248,7 @@ def draw_labeled_box(
     line_thickness: int = 2,
 ) -> None:
     cv2.rectangle(img, (x1, y1), (x2, y2), color_bgr, line_thickness)
-    font = cv2.FONT_HERSHEY_SIMPLEX
-    font_scale = 0.55
-    thickness = 2
-    (tw, th), baseline = cv2.getTextSize(label, font, font_scale, thickness)
-    ty = max(y1 - 4, th + 6)
-    cv2.rectangle(
-        img,
-        (x1, ty - th - 6),
-        (x1 + tw + 8, ty + baseline - 2),
-        COLOR_TEXT_BG,
-        -1,
-    )
-    cv2.putText(img, label, (x1 + 4, ty - 4), font, font_scale, (255, 255, 255), thickness, cv2.LINE_AA)
+    
 
 
 def process_frame(r: Any, img_h: int) -> tuple[np.ndarray, list[str]]:
