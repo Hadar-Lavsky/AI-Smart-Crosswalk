@@ -1,10 +1,9 @@
 {
   "compilerOptions": {
     "checkJs": false,
+    "ignoreDeprecations": "6.0",
     "jsx": "react-jsx",
     "target": "ES2022",
-    "module": "ES2022",
-    "moduleResolution": "bundler",
     "types": ["vite/client"],
     "baseUrl": ".",
     "paths": { "@/*": ["src/*"] }

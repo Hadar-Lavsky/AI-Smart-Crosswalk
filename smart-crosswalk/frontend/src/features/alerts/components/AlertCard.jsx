@@ -3,9 +3,9 @@ import { Badge } from '../../../components/ui';
 import { GenericDetailCard } from '../../../components/common/GenericDetailCard';
 import {
   formatId,
-  formatLocation,
   formatDate,
   formatDangerLevel,
+  formatLocation,
   getImageUrl,
 } from '../../../utils';
 
@@ -25,6 +25,7 @@ function AlertCardComponent({ item, index, onEdit, onDelete }) {
   return (
     <GenericDetailCard
       className={`border-l-4 ${dl.border}`}
+      layout="stacked"
       header={{
         icon: dl.icon,
         title: `${indexLabel}${dl.label} Danger Alert`,
@@ -43,7 +44,7 @@ function AlertCardComponent({ item, index, onEdit, onDelete }) {
           component: <Badge variant={dl.variant}>{dl.label} Danger</Badge>,
         },
         { label: 'Detected', value: formatDate(item.timestamp || item.createdAt) },
-        { label: 'Camera', value: formatId(item.crosswalkId?.cameraId?._id) },
+        { label: 'Alert ID', value: formatId(item._id), valueClassName: 'text-gray-500 font-mono ml-2', break: true },
       ]}
       actions={[
         onEdit && {

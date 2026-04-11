@@ -25,6 +25,7 @@ function AlertHistoryCardComponent({ item, index, onViewDetails }) {
   return (
     <GenericDetailCard
       className={`border-l-4 ${dl.border}`}
+      layout="stacked"
       header={{
         icon: dl.icon,
         title: `${indexLabel}${dl.label} Danger Alert`,
