@@ -5,6 +5,12 @@ import { queryKeys } from "../../../hooks/queryKeys";
 
 const PAGE_SIZE = 10;
 
+const DEFAULT_FILTERS = {
+  dateRange: { startDate: null, endDate: null },
+  dangerLevel: "all",
+  sortBy: "newest",
+};
+
 /**
  * useCrosswalkList — fetches crosswalks with "Load More" pagination.
  *
@@ -45,6 +51,50 @@ export function useCrosswalkList() {
       });
     }
   }, [data, page]);
+
+  // Prefetch alerts and stats for crosswalks loaded via "Load More" (page > 1).
+  // Page 1 is already prefetched in main.jsx before React renders.
+  useEffect(() => {
+    if (!data?.data?.length || page === 1) return;
+
+    data.data.forEach((crosswalk) => {
+      const id = crosswalk._id;
+
+      queryClient.setQueryData(queryKeys.crosswalks.detail(id), crosswalk);
+
+      queryClient.prefetchQuery({
+        queryKey: queryKeys.crosswalks.alerts(id, DEFAULT_FILTERS, 1),
+        queryFn: async () => {
+          const response = await crosswalksApi.getAlerts(id, {
+            startDate: null,
+            endDate: null,
+            dangerLevel: "all",
+            sortBy: "newest",
+            page: 1,
+            limit: PAGE_SIZE,
+          });
+          return {
+            alerts: response.alerts || [],
+            pagination: response.pagination || {
+              totalPages: 1,
+              totalAlerts: 0,
+              hasMore: false,
+            },
+          };
+        },
+        staleTime: 5 * 60 * 1000,
+      });
+
+      queryClient.prefetchQuery({
+        queryKey: queryKeys.crosswalks.detailStats(id),
+        queryFn: async () => {
+          const response = await crosswalksApi.getCrosswalkStats(id);
+          return response.data;
+        },
+        staleTime: 5 * 60 * 1000,
+      });
+    });
+  }, [data, page, queryClient]);
 
   const hasMore = data?.pagination?.hasMore ?? false;
   const loadingMore = page > 1 && isFetching;
