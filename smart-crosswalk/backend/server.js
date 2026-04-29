@@ -38,6 +38,11 @@ app.use("/api/crosswalks", crosswalkRoutes);
 app.use("/api/cameras", cameraRoutes);
 app.use("/api/leds", ledRoutes);
 
+// Keep-alive endpoint for UptimeRobot (pings every 5 min to prevent Render sleep)
+app.get("/api/awake", (req, res) => {
+  res.json({ success: true, message: "Server is awake", timestamp: new Date().toISOString() });
+});
+
 // Health check endpoint
 app.get("/api/health", (req, res) => {
   const dbState = mongoose.connection.readyState;
