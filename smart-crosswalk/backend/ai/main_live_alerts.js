@@ -13,6 +13,7 @@ import { spawn } from "child_process";
 import { v2 as cloudinary } from "cloudinary";
 import dotenv from "dotenv";
 import fs from "fs-extra";
+import readline from "node:readline";
 import path from "path";
 import { fileURLToPath } from "url";
 
@@ -96,80 +97,124 @@ function frameDangerLevelFromStatuses(statuses) {
 }
 
 /**
- * @param {string} imagePath
- * @returns {Promise<{ statuses: string[], annotated_image_base64: string }>}
+ * @param {string} line
+ * @returns {{ statuses: string[], annotated_image_base64: string }}
  */
-function runDetectionWorker(imagePath) {
+function parseWorkerJsonLine(line) {
+  const trimmed = line.trim();
+  if (!trimmed) {
+    throw new Error("worker returned empty line");
+  }
+  let parsed;
+  try {
+    parsed = JSON.parse(trimmed);
+  } catch {
+    throw new Error(`worker returned non-JSON: ${trimmed.slice(0, 200)}`);
+  }
+  if (!parsed || typeof parsed !== "object" || !("ok" in parsed)) {
+    throw new Error("worker JSON missing ok field");
+  }
+  if (!parsed.ok) {
+    throw new Error(parsed.error || "worker reported failure");
+  }
+  return {
+    statuses: Array.isArray(parsed.statuses) ? parsed.statuses : [],
+    annotated_image_base64: String(parsed.annotated_image_base64 || ""),
+  };
+}
+
+/**
+ * One Python process: YOLO loads once; paths are sent on stdin, one JSON line per path on stdout.
+ */
+function spawnPersistentDetectionWorker() {
   const pythonBin = process.env.PYTHON?.trim() || "python";
-
-  return new Promise((resolve, reject) => {
-    const child = spawn(pythonBin, [WORKER_SCRIPT, imagePath], {
-      cwd: AI_DIR,
-      windowsHide: true,
-    });
-
-    let stdout = "";
-    let stderr = "";
-
-    child.stdout?.on("data", (chunk) => {
-      stdout += chunk.toString();
-    });
-    child.stderr?.on("data", (chunk) => {
-      stderr += chunk.toString();
-    });
-
-    child.on("error", (err) => {
-      reject(new Error(`spawn failed (${pythonBin}): ${err.message}`));
-    });
-
-    child.on("close", (code) => {
-      if (stderr.trim()) {
-        log("worker:stderr", stderr.trim());
-      }
-
-      const lines = stdout
-        .split(/\r?\n/)
-        .map((l) => l.trim())
-        .filter(Boolean);
-
-      let parsed = null;
-      for (let i = lines.length - 1; i >= 0; i--) {
-        try {
-          const o = JSON.parse(lines[i]);
-          if (o && typeof o === "object" && "ok" in o) {
-            parsed = o;
-            break;
-          }
-        } catch {
-          /* skip non-JSON lines */
-        }
-      }
-
-      if (!parsed) {
-        reject(
-          new Error(
-            `worker produced no JSON (exit ${code}). stdout: ${stdout.slice(0, 500)}`,
-          ),
-        );
-        return;
-      }
-
-      if (!parsed.ok) {
-        reject(new Error(parsed.error || "worker reported failure"));
-        return;
-      }
-
-      if (code !== 0) {
-        reject(new Error(`worker exited ${code} despite ok payload`));
-        return;
-      }
-
-      resolve({
-        statuses: Array.isArray(parsed.statuses) ? parsed.statuses : [],
-        annotated_image_base64: String(parsed.annotated_image_base64 || ""),
-      });
-    });
+  const child = spawn(pythonBin, [WORKER_SCRIPT], {
+    cwd: AI_DIR,
+    windowsHide: true,
+    stdio: ["pipe", "pipe", "pipe"],
   });
+
+  const rl = readline.createInterface({
+    input: child.stdout,
+    crlfDelay: Infinity,
+  });
+
+  const lineQueue = [];
+  /** @type {{ resolve: (v: string) => void, reject: (e: Error) => void } | null} */
+  let pending = null;
+
+  function rejectPending(err) {
+    if (pending) {
+      const p = pending;
+      pending = null;
+      p.reject(err);
+    }
+  }
+
+  rl.on("line", (line) => {
+    if (pending) {
+      const p = pending;
+      pending = null;
+      p.resolve(line);
+    } else {
+      lineQueue.push(line);
+    }
+  });
+
+  rl.on("close", () => {
+    rejectPending(new Error("worker stdout closed unexpectedly"));
+  });
+
+  function readNextLine() {
+    return new Promise((resolve, reject) => {
+      if (lineQueue.length > 0) {
+        resolve(/** @type {string} */ (lineQueue.shift()));
+        return;
+      }
+      pending = { resolve, reject };
+    });
+  }
+
+  child.stderr?.on("data", (chunk) => {
+    const t = chunk.toString().trim();
+    if (t) log("worker:stderr", t);
+  });
+
+  child.on("error", (err) => {
+    rejectPending(new Error(`worker process error: ${err.message}`));
+  });
+
+  child.on("close", (code, signal) => {
+    const reason =
+      signal != null
+        ? `worker exited with signal ${signal}`
+        : `worker exited with code ${code}`;
+    rejectPending(new Error(reason));
+  });
+
+  return {
+    /**
+     * @param {string} imagePath
+     */
+    async runDetection(imagePath) {
+      const line = `${imagePath}\n`;
+      const writable = child.stdin.write(line);
+      if (!writable) {
+        await new Promise((resolve) => child.stdin.once("drain", resolve));
+      }
+      const outLine = await readNextLine();
+      return parseWorkerJsonLine(outLine);
+    },
+    dispose() {
+      rejectPending(new Error("worker shut down"));
+      rl.close();
+      try {
+        child.stdin.end();
+      } catch {
+        /* ignore */
+      }
+    },
+  };
 }
 
 /**
@@ -273,10 +318,8 @@ async function main() {
     process.exit(1);
   }
 
-  // --- התיקון שלנו: קוראים לפונקציה ושומרים את התוצאה במשתנה ---
+  
   const crosswalk = await resolveTargetCrosswalk();
-  // --------------------------------------------------------------
-
   const crosswalkId = crosswalk?._id;
   const location = crosswalk?.location;
   const cam = crosswalk?.cameraId;
@@ -296,60 +339,66 @@ async function main() {
 
   const summary = { HIGH: 0, MEDIUM: 0, LOW: 0, discarded: 0, errors: 0 };
 
-  for (const filename of names) {
-    const imagePath = path.join(MOCKS_IMG, filename);
-    log("frame", `Processing ${filename}`, { path: imagePath });
+  const worker = spawnPersistentDetectionWorker();
 
-    let statuses;
-    let b64;
-    try {
-      const out = await runDetectionWorker(imagePath);
-      statuses = out.statuses;
-      b64 = out.annotated_image_base64;
-    } catch (e) {
-      summary.errors += 1;
-      log("error", String(e.message || e));
-      continue;
+  try {
+    for (const filename of names) {
+      const imagePath = path.join(MOCKS_IMG, filename);
+      log("frame", `Processing ${filename}`, { path: imagePath });
+
+      let statuses;
+      let b64;
+      try {
+        const out = await worker.runDetection(imagePath);
+        statuses = out.statuses;
+        b64 = out.annotated_image_base64;
+      } catch (e) {
+        summary.errors += 1;
+        log("error", String(e.message || e));
+        continue;
+      }
+
+      log("detect", `Persons: ${statuses.length}`, { statuses });
+
+      if (statuses.length === 0) {
+        summary.discarded += 1;
+        log("filter", "Discard: no persons detected — skip upload/API");
+        continue;
+      }
+
+      const risk = frameDangerLevelFromStatuses(statuses);
+      log("risk", `Frame danger level: ${risk}`);
+
+      if (risk === "LOW") {
+        summary.LOW += 1;
+        summary.discarded += 1;
+        log("filter", "Discard: LOW risk — skip upload/API");
+        continue;
+      }
+
+      summary[risk] += 1;
+
+      try {
+        log("upload", "Uploading annotated frame (HIGH/MEDIUM only)…");
+        const imageUrl = await uploadAlertImage(b64, filename);
+        log("api", "POST alert to backend…");
+        await createAlertOnBackend({
+          imageUrl,
+          dangerLevel: risk,
+          crosswalkId,
+          location,
+          cameraId,
+        });
+        log("done", `Frame complete: ${filename}`, { risk });
+      } catch (e) {
+        summary.errors += 1;
+        log("error", String(e.message || e));
+      }
+
+      await new Promise((r) => setTimeout(r, FRAME_DELAY_MS));
     }
-
-    log("detect", `Persons: ${statuses.length}`, { statuses });
-
-    if (statuses.length === 0) {
-      summary.discarded += 1;
-      log("filter", "Discard: no persons detected — skip upload/API");
-      continue;
-    }
-
-    const risk = frameDangerLevelFromStatuses(statuses);
-    log("risk", `Frame danger level: ${risk}`);
-
-    if (risk === "LOW") {
-      summary.LOW += 1;
-      summary.discarded += 1;
-      log("filter", "Discard: LOW risk — skip upload/API");
-      continue;
-    }
-
-    summary[risk] += 1;
-
-    try {
-      log("upload", "Uploading annotated frame (HIGH/MEDIUM only)…");
-      const imageUrl = await uploadAlertImage(b64, filename);
-      log("api", "POST alert to backend…");
-      await createAlertOnBackend({
-        imageUrl,
-        dangerLevel: risk,
-        crosswalkId,
-        location,
-        cameraId,
-      });
-      log("done", `Frame complete: ${filename}`, { risk });
-    } catch (e) {
-      summary.errors += 1;
-      log("error", String(e.message || e));
-    }
-
-    await new Promise((r) => setTimeout(r, FRAME_DELAY_MS));
+  } finally {
+    worker.dispose();
   }
 
   log(
