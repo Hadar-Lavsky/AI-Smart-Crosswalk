@@ -2,8 +2,9 @@
 Batch-run YOLOv8-pose on images in mocks_img/ and save annotated frames to mocks_img_output/.
 
 Traffic-light safety:
-  - CHILD: bbox height < 20% of image height -> red, "CHILD - DANGER".
-  - CHILD + verified hand-holding with a nearby adult -> orange, "CHILD - LINKED" (see linking passes below).
+  - CHILD: bbox height < 20% of image height -> red, "CHILD - DANGER" (unless linked below).
+  - CHILD + verified hand-holding: priority to a safe (green) adult -> green, "CHILD - WITH ADULT";
+    else with a distracted (yellow) adult only -> orange, "CHILD - LINKED". Neon link line drawn for both.
   - ADULT: torso-relative hand lift ratio; ratio > 0.25 -> yellow "ADULT - DISTRACTED", else green "ADULT - SAFE".
 """
 
@@ -54,6 +55,7 @@ LINE_NEON_MARKER = (0, 255, 255)  # neon / marker yellow BGR
 
 LABEL_CHILD = "CHILD - DANGER"
 LABEL_CHILD_LINKED = "CHILD - LINKED"
+LABEL_CHILD_SAFE = "CHILD - WITH ADULT"
 LABEL_DISTRACTED = "ADULT - DISTRACTED"
 LABEL_SAFE = "ADULT - SAFE"
 
@@ -182,9 +184,15 @@ def pass2_link_children(
     people: list[PersonPass1],
     child_indices: list[int],
     adult_indices: list[int],
-) -> tuple[set[int], list[tuple[tuple[int, int], tuple[int, int]] | None]]:
+) -> tuple[
+    set[int],
+    set[int],
+    list[tuple[tuple[int, int], tuple[int, int]] | None],
+]:
+    """Hand-links: safe (green) adults take priority over distracted (yellow) for the same child."""
     n = len(people)
-    linked: set[int] = set()
+    safe_linked: set[int] = set()
+    distracted_linked: set[int] = set()
     lines: list[tuple[tuple[int, int], tuple[int, int]] | None] = [None] * n
 
     for ci in child_indices:
@@ -196,23 +204,43 @@ def pass2_link_children(
             for ai in adult_indices
             if bbox_intersection_area(people[ai].xyxy, child.xyxy) > 0.0
         ]
+
         for ai in overlapping_adults:
-            pts = try_validate_hand_link(people[ai], child)
-            if pts is not None:
-                linked.add(ci)
+            adult = people[ai]
+            pts = try_validate_hand_link(adult, child)
+            if pts is None:
+                continue
+            if classify_adult(adult.xy, adult.conf)[0] == LABEL_SAFE:
+                safe_linked.add(ci)
                 lines[ci] = pts
                 break
 
-    return linked, lines
+        if ci in safe_linked:
+            continue
+
+        for ai in overlapping_adults:
+            adult = people[ai]
+            pts = try_validate_hand_link(adult, child)
+            if pts is None:
+                continue
+            if classify_adult(adult.xy, adult.conf)[0] == LABEL_DISTRACTED:
+                distracted_linked.add(ci)
+                lines[ci] = pts
+                break
+
+    return safe_linked, distracted_linked, lines
 
 
 def final_label_and_color(
     idx: int,
     person: PersonPass1,
-    linked_children: set[int],
+    safe_linked: set[int],
+    distracted_linked: set[int],
 ) -> tuple[str, tuple[int, int, int]]:
     if person.is_child:
-        if idx in linked_children:
+        if idx in safe_linked:
+            return LABEL_CHILD_SAFE, COLOR_SAFE
+        if idx in distracted_linked:
             return LABEL_CHILD_LINKED, COLOR_CHILD_LINKED
         return LABEL_CHILD, COLOR_CHILD
     return classify_adult(person.xy, person.conf)
@@ -234,8 +262,9 @@ def draw_labeled_box(
 def process_frame(r: Any, img_h: int) -> tuple[np.ndarray, list[str]]:
     """
     Pass 1: classify each detection as child/adult.
-    Pass 2: for each child, overlapping adults only - opposite hands - conf + distance.
-    Pass 3: skeleton, boxes/labels, neon wrist-wrist lines for LINKED children.
+    Pass 2: hand-links with overlapping adults — safe (green) partner first, else distracted (yellow);
+            neon line stored for either link type.
+    Pass 3: skeleton, boxes/labels, neon wrist-wrist lines for linked children.
 
     Returns (annotated_image, list_of_status_labels).
     """
@@ -278,13 +307,15 @@ def process_frame(r: Any, img_h: int) -> tuple[np.ndarray, list[str]]:
         else:
             adult_indices.append(i)
 
-    linked_children, line_segments = pass2_link_children(people, child_indices, adult_indices)
+    safe_linked, distracted_linked, line_segments = pass2_link_children(
+        people, child_indices, adult_indices
+    )
 
     for i in range(len(people)):
         p = people[i]
         xyxy = p.xyxy
         x1, y1, x2, y2 = [int(round(v)) for v in xyxy]
-        label, color = final_label_and_color(i, p, linked_children)
+        label, color = final_label_and_color(i, p, safe_linked, distracted_linked)
         statuses.append(label)
         draw_labeled_box(annotated, x1, y1, x2, y2, label, color)
 
@@ -329,7 +360,7 @@ def main() -> None:
         print(f"Failed to load model {model_path}: {e}", file=sys.stderr)
         sys.exit(1)
 
-    print("YOLOv8-pose traffic-light + CHILD - LINKED (hand-holding)")
+    print("YOLOv8-pose traffic-light + hand-links (safe adult > distracted adult)")
     print(f"  Input:  {input_folder}")
     print(f"  Output: {output_folder}")
     print()
