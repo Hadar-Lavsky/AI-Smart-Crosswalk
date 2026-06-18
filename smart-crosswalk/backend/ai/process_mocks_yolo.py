@@ -1,10 +1,30 @@
 """
-Batch-run YOLOv8-pose on images in mocks_img/ and save annotated frames to mocks_img_output/.
+process_mocks_yolo.py — YOLOv8-pose traffic-light classifier (recalibrated).
 
-Traffic-light safety:
-  - CHILD: bbox height < 20% of image height -> red, "CHILD - DANGER".
-  - CHILD + verified hand-holding with a nearby adult -> orange, "CHILD - LINKED" (see linking passes below).
-  - ADULT: torso-relative hand lift ratio; ratio > 0.25 -> yellow "ADULT - DISTRACTED", else green "ADULT - SAFE".
+Labels / colors / danger mapping (unchanged):
+  CHILD - DANGER     red    -> HIGH
+  CHILD - LINKED     orange -> MEDIUM   (child standing with an adult)
+  ADULT - DISTRACTED yellow -> MEDIUM
+  ADULT - SAFE       green  -> LOW
+
+Recalibrated from real detections on the Train Images (all ~2089x753):
+  1. CHILD test: box height < 44% of image height (was 20%). Children measured
+     37-39% imgH, adults 48-60%, so 20% misread every child as an adult.
+  2. ACCOMPANIMENT: a child is "linked" when an adult stands with them
+     (boxes adjacent/overlapping + feet at similar depth), replacing the brittle
+     "both inner wrists within 15px at >0.5 conf".
+  3. CROSSWALK ZONE: people whose feet fall outside the crossing zone are
+     treated as ADULT - SAFE. Front edge at y=0.853 sits between the at-crossing
+     feet (<=0.845) and the not-near feet (>=0.861).
+  4. DISTRACTION: also flags a bowed head (looking down at a phone), since a
+     phone held low produces no "hand lift".
+
+`process_frame(r)` derives the image size from the frame and returns
+(annotated_image, status_labels) — the same 2-value contract the rest of the
+AI module (e.g. main_with_live_alerts.py) already expects.
+
+    python process_mocks_yolo.py            # processes ./mocks_img -> ./mocks_img_output
+    python process_mocks_yolo.py <folder>   # processes a different folder
 """
 
 from __future__ import annotations
@@ -19,6 +39,7 @@ import numpy as np
 from ultralytics import YOLO
 
 # --- COCO pose indices ---
+KPT_NOSE = 0
 KPT_LEFT_SHOULDER = 5
 KPT_RIGHT_SHOULDER = 6
 KPT_LEFT_WRIST = 9
@@ -27,30 +48,54 @@ KPT_LEFT_HIP = 11
 KPT_RIGHT_HIP = 12
 
 ADULT_SCORE_KPT_INDICES = (
-    KPT_LEFT_SHOULDER,
-    KPT_RIGHT_SHOULDER,
-    KPT_LEFT_WRIST,
-    KPT_RIGHT_WRIST,
-    KPT_LEFT_HIP,
-    KPT_RIGHT_HIP,
+    KPT_LEFT_SHOULDER, KPT_RIGHT_SHOULDER,
+    KPT_LEFT_WRIST, KPT_RIGHT_WRIST,
+    KPT_LEFT_HIP, KPT_RIGHT_HIP,
 )
 
-CHILD_HEIGHT_FRACTION = 0.20
+# ------------------------- TUNABLE RULES -------------------------
+# Child if bounding-box height is below this fraction of image height.
+# (Calibrated: children 37-39% imgH, adults 48-60% imgH on this camera.)
+CHILD_HEIGHT_FRACTION = 0.44
+
+# Distraction (raised hand): wrist lifted above the hips by > this fraction of torso.
 KEYPOINT_CONF_THRESHOLD = 0.3
 HAND_LIFT_DISTRACTED_THRESHOLD = 0.25
 MIN_TORSO_HEIGHT_PX = 20
 
-# Protected child (hand-holding): both wrists must be strictly > 0.5, d < 15 px
-WRIST_LINK_CONF_THRESHOLD = 0.5
-MAX_GRIP_DISTANCE_PX = 15.0
+# Distraction (looking down): nose low relative to the shoulders. head_up =
+# (shoulder_y - nose_y) / torso; upright faces score high, bowed heads low.
+# Applied only when the face is visible, so people facing away don't false-fire.
+HEAD_DOWN_RATIO_THRESHOLD = 0.35
+HEAD_VISIBLE_CONF = 0.40
+
+# Accompaniment ("CHILD - LINKED"): an adult is "with" the child if their boxes
+# are adjacent (gap <= this fraction of the adult's width; overlap = 0) AND their
+# feet are within this fraction of image height in depth.
+LINK_X_GAP_FRACTION = 0.60
+LINK_FEET_DY_FRACTION = 0.12
+
+# Optional neon wrist-to-wrist line drawn for linked children (cosmetic).
+WRIST_LINE_CONF_THRESHOLD = 0.20
+
+# Crosswalk danger-zone polygon in NORMALIZED (x/W, y/H) coords. Front edge at
+# y=0.853 separates at-crossing feet (<=0.845) from not-near feet (>=0.861).
+ZONE_POLYGON_NORM = [
+    (0.26, 0.50),   # top-left (up the road)
+    (0.66, 0.50),   # top-right
+    (0.66, 0.853),  # front-right (near curb edge)
+    (0.26, 0.853),  # front-left
+]
 
 IMAGE_EXTS = (".jpg", ".jpeg", ".png", ".webp", ".bmp")
 
-COLOR_CHILD = (0, 0, 255)
-COLOR_CHILD_LINKED = (0, 165, 255)  # orange BGR
-COLOR_DISTRACTED = (0, 255, 255)
-COLOR_SAFE = (0, 255, 0)
-LINE_NEON_MARKER = (0, 255, 255)  # neon / marker yellow BGR
+# BGR colors (unchanged)
+COLOR_CHILD = (0, 0, 255)           # red
+COLOR_CHILD_LINKED = (0, 165, 255)  # orange
+COLOR_DISTRACTED = (0, 255, 255)    # yellow
+COLOR_SAFE = (0, 255, 0)            # green
+COLOR_ZONE = (255, 255, 0)          # cyan (zone outline)
+LINE_NEON_MARKER = (0, 255, 255)
 
 LABEL_CHILD = "CHILD - DANGER"
 LABEL_CHILD_LINKED = "CHILD - LINKED"
@@ -59,73 +104,83 @@ LABEL_SAFE = "ADULT - SAFE"
 
 
 @dataclass
-class PersonPass1:
-    """One detection after height-based child vs adult split (Pass 1)."""
+class Person:
     xyxy: np.ndarray
     is_child: bool
+    in_zone: bool
     xy: np.ndarray | None
     conf: np.ndarray | None
 
 
-def _to_numpy_xy_conf(kpts_data: Any, det_idx: int) -> tuple[np.ndarray | None, np.ndarray | None]:
+# ------------------------- geometry helpers -------------------------
+def bbox_height_px(b: np.ndarray) -> float:
+    return float(b[3] - b[1])
+
+
+def bbox_width_px(b: np.ndarray) -> float:
+    return float(b[2] - b[0])
+
+
+def foot_point(b: np.ndarray) -> tuple[float, float]:
+    """Bottom-center of the box = where the person stands."""
+    return (float(b[0] + b[2]) / 2.0, float(b[3]))
+
+
+def point_in_polygon(px: float, py: float, poly: list[tuple[float, float]]) -> bool:
+    inside = False
+    n = len(poly)
+    j = n - 1
+    for i in range(n):
+        xi, yi = poly[i]
+        xj, yj = poly[j]
+        if ((yi > py) != (yj > py)) and (px < (xj - xi) * (py - yi) / (yj - yi + 1e-9) + xi):
+            inside = not inside
+        j = i
+    return inside
+
+
+def zone_polygon_px(w: int, h: int) -> list[tuple[int, int]]:
+    return [(int(round(nx * w)), int(round(ny * h))) for nx, ny in ZONE_POLYGON_NORM]
+
+
+def horizontal_gap(a: np.ndarray, b: np.ndarray) -> float:
+    """0 if the boxes overlap in x, else the horizontal gap between them."""
+    if a[2] < b[0]:
+        return float(b[0] - a[2])
+    if b[2] < a[0]:
+        return float(a[0] - b[2])
+    return 0.0
+
+
+# ------------------------- keypoint helpers -------------------------
+def to_numpy_xy_conf(kpts_data: Any, idx: int):
     try:
-        row = kpts_data[det_idx]
+        row = kpts_data[idx]
     except (IndexError, TypeError):
         return None, None
     if row is None:
         return None, None
-
-    arr = row
-    if hasattr(arr, "detach"):
-        arr = arr.detach().cpu().numpy()
-    elif hasattr(arr, "cpu"):
-        arr = arr.cpu().numpy()
-    else:
-        arr = np.asarray(arr)
-
+    arr = row.detach().cpu().numpy() if hasattr(row, "detach") else (
+        row.cpu().numpy() if hasattr(row, "cpu") else np.asarray(row))
     if arr.ndim != 2 or arr.shape[0] < 17:
         return None, None
-
     xy = arr[:, :2].astype(np.float32)
-    conf = arr[:, 2].astype(np.float32) if arr.shape[1] >= 3 else np.ones(17, dtype=np.float32)
+    conf = arr[:, 2].astype(np.float32) if arr.shape[1] >= 3 else np.ones(17, np.float32)
     return xy, conf
 
 
-def bbox_height_px(xyxy: np.ndarray) -> float:
-    return float(xyxy[3] - xyxy[1])
-
-
-def bbox_center_x(xyxy: np.ndarray) -> float:
-    return float((xyxy[0] + xyxy[2]) / 2.0)
-
-
-def bbox_intersection_area(a: np.ndarray, b: np.ndarray) -> float:
-    ax1, ay1, ax2, ay2 = map(float, a)
-    bx1, by1, bx2, by2 = map(float, b)
-    ix1 = max(ax1, bx1)
-    iy1 = max(ay1, by1)
-    ix2 = min(ax2, bx2)
-    iy2 = min(ay2, by2)
-    if ix2 <= ix1 or iy2 <= iy1:
-        return 0.0
-    return float((ix2 - ix1) * (iy2 - iy1))
-
-
-def adult_keypoints_sufficient(conf: np.ndarray) -> bool:
-    for i in ADULT_SCORE_KPT_INDICES:
-        if i >= len(conf) or conf[i] < KEYPOINT_CONF_THRESHOLD:
-            return False
-    return True
-
-
-def torso_height_L(xy: np.ndarray) -> float:
+def torso_height(xy: np.ndarray) -> float:
     sy = (float(xy[KPT_LEFT_SHOULDER, 1]) + float(xy[KPT_RIGHT_SHOULDER, 1])) / 2.0
     hy = (float(xy[KPT_LEFT_HIP, 1]) + float(xy[KPT_RIGHT_HIP, 1])) / 2.0
     return abs(sy - hy)
 
 
-def max_hand_lift_ratio(xy: np.ndarray) -> float | None:
-    L = torso_height_L(xy)
+def adult_keypoints_sufficient(conf: np.ndarray) -> bool:
+    return all(i < len(conf) and conf[i] >= KEYPOINT_CONF_THRESHOLD for i in ADULT_SCORE_KPT_INDICES)
+
+
+def max_hand_lift_ratio(xy: np.ndarray):
+    L = torso_height(xy)
     if L < MIN_TORSO_HEIGHT_PX:
         return None
     avg_hip_y = (float(xy[KPT_LEFT_HIP, 1]) + float(xy[KPT_RIGHT_HIP, 1])) / 2.0
@@ -134,241 +189,155 @@ def max_hand_lift_ratio(xy: np.ndarray) -> float | None:
     return max(r_l, r_r)
 
 
-def classify_adult(
-    xy: np.ndarray | None,
-    conf: np.ndarray | None,
-) -> tuple[str, tuple[int, int, int]]:
-    if xy is None or conf is None or not adult_keypoints_sufficient(conf):
+def head_up_ratio(xy, conf):
+    """How far the nose sits above the shoulder line, scaled by torso height.
+    Returns (nose_conf, ratio | None)."""
+    if xy is None or conf is None or len(conf) <= KPT_NOSE:
+        return 0.0, None
+    nose_c = float(conf[KPT_NOSE])
+    for i in (KPT_LEFT_SHOULDER, KPT_RIGHT_SHOULDER, KPT_LEFT_HIP, KPT_RIGHT_HIP):
+        if i >= len(conf) or conf[i] < KEYPOINT_CONF_THRESHOLD:
+            return nose_c, None
+    L = torso_height(xy)
+    if L < MIN_TORSO_HEIGHT_PX:
+        return nose_c, None
+    avg_sh_y = (float(xy[KPT_LEFT_SHOULDER, 1]) + float(xy[KPT_RIGHT_SHOULDER, 1])) / 2.0
+    return nose_c, (avg_sh_y - float(xy[KPT_NOSE, 1])) / L
+
+
+def is_head_down(xy, conf) -> bool:
+    nose_c, ratio = head_up_ratio(xy, conf)
+    return nose_c >= HEAD_VISIBLE_CONF and ratio is not None and ratio < HEAD_DOWN_RATIO_THRESHOLD
+
+
+def classify_adult(xy, conf):
+    if xy is None or conf is None:
         return LABEL_SAFE, COLOR_SAFE
-    ratio = max_hand_lift_ratio(xy)
-    if ratio is None:
-        return LABEL_SAFE, COLOR_SAFE
-    if ratio > HAND_LIFT_DISTRACTED_THRESHOLD:
+    if is_head_down(xy, conf):                      # looking down at a phone
         return LABEL_DISTRACTED, COLOR_DISTRACTED
+    if adult_keypoints_sufficient(conf):            # hand raised (phone-to-ear)
+        ratio = max_hand_lift_ratio(xy)
+        if ratio is not None and ratio > HAND_LIFT_DISTRACTED_THRESHOLD:
+            return LABEL_DISTRACTED, COLOR_DISTRACTED
     return LABEL_SAFE, COLOR_SAFE
 
 
-def opposite_hands_indices(cx_adult: float, cx_child: float) -> tuple[int, int]:
-    if cx_adult < cx_child:
-        return KPT_RIGHT_WRIST, KPT_LEFT_WRIST
-    if cx_adult > cx_child:
-        return KPT_LEFT_WRIST, KPT_RIGHT_WRIST
-    return KPT_RIGHT_WRIST, KPT_LEFT_WRIST
-
-
-def try_validate_hand_link(adult: PersonPass1, child: PersonPass1) -> tuple[tuple[int, int], tuple[int, int]] | None:
-    if adult.xy is None or adult.conf is None or child.xy is None or child.conf is None:
-        return None
-
-    cx_a = bbox_center_x(adult.xyxy)
-    cx_c = bbox_center_x(child.xyxy)
-    ia, ic = opposite_hands_indices(cx_a, cx_c)
-
-    if ia >= len(adult.conf) or ic >= len(child.conf):
-        return None
-    if not (adult.conf[ia] > WRIST_LINK_CONF_THRESHOLD and child.conf[ic] > WRIST_LINK_CONF_THRESHOLD):
-        return None
-
-    ax, ay = float(adult.xy[ia, 0]), float(adult.xy[ia, 1])
-    cx, cy = float(child.xy[ic, 0]), float(child.xy[ic, 1])
-    d = float(np.sqrt((cx - ax) ** 2 + (cy - ay) ** 2))
-    if d >= MAX_GRIP_DISTANCE_PX:
-        return None
-
-    return (int(round(ax)), int(round(ay))), (int(round(cx)), int(round(cy)))
-
-
-def pass2_link_children(
-    people: list[PersonPass1],
-    child_indices: list[int],
-    adult_indices: list[int],
-) -> tuple[set[int], list[tuple[tuple[int, int], tuple[int, int]] | None]]:
-    n = len(people)
-    linked: set[int] = set()
-    lines: list[tuple[tuple[int, int], tuple[int, int]] | None] = [None] * n
-
-    for ci in child_indices:
-        if not people[ci].is_child:
+# ------------------------- accompaniment (linking) -------------------------
+def child_is_accompanied(child: Person, adults: list[Person], img_h: int):
+    """A child is 'with' an in-zone adult standing beside them: boxes
+    adjacent/overlapping in x AND feet at similar depth."""
+    _, c_feet_y = foot_point(child.xyxy)
+    for a in adults:
+        if not a.in_zone:
             continue
-        child = people[ci]
-        overlapping_adults = [
-            ai
-            for ai in adult_indices
-            if bbox_intersection_area(people[ai].xyxy, child.xyxy) > 0.0
-        ]
-        for ai in overlapping_adults:
-            pts = try_validate_hand_link(people[ai], child)
-            if pts is not None:
-                linked.add(ci)
-                lines[ci] = pts
-                break
-
-    return linked, lines
+        if horizontal_gap(child.xyxy, a.xyxy) > LINK_X_GAP_FRACTION * bbox_width_px(a.xyxy):
+            continue
+        _, a_feet_y = foot_point(a.xyxy)
+        if abs(c_feet_y - a_feet_y) > LINK_FEET_DY_FRACTION * img_h:
+            continue
+        return a
+    return None
 
 
-def final_label_and_color(
-    idx: int,
-    person: PersonPass1,
-    linked_children: set[int],
-) -> tuple[str, tuple[int, int, int]]:
-    if person.is_child:
-        if idx in linked_children:
-            return LABEL_CHILD_LINKED, COLOR_CHILD_LINKED
-        return LABEL_CHILD, COLOR_CHILD
-    return classify_adult(person.xy, person.conf)
+def inner_wrist_points(child: Person, adult: Person):
+    if child.xy is None or adult.xy is None or child.conf is None or adult.conf is None:
+        return None
+    c_cx = (child.xyxy[0] + child.xyxy[2]) / 2.0
+    a_cx = (adult.xyxy[0] + adult.xyxy[2]) / 2.0
+    ai, ci = (KPT_LEFT_WRIST, KPT_RIGHT_WRIST) if a_cx > c_cx else (KPT_RIGHT_WRIST, KPT_LEFT_WRIST)
+    if adult.conf[ai] < WRIST_LINE_CONF_THRESHOLD or child.conf[ci] < WRIST_LINE_CONF_THRESHOLD:
+        return None
+    pa = (int(round(float(adult.xy[ai, 0]))), int(round(float(adult.xy[ai, 1]))))
+    pc = (int(round(float(child.xy[ci, 0]))), int(round(float(child.xy[ci, 1]))))
+    return pa, pc
 
 
-def draw_labeled_box(
-    img: np.ndarray,
-    x1: int,
-    y1: int,
-    x2: int,
-    y2: int,
-    label: str,
-    color_bgr: tuple[int, int, int],
-    line_thickness: int = 2,
-) -> None:
-    cv2.rectangle(img, (x1, y1), (x2, y2), color_bgr, line_thickness)
+# ------------------------- per-frame processing -------------------------
+def process_frame(r: Any, *_ignored):
+    """Classify everyone in one YOLO result. Returns (annotated_image, statuses).
+    Image size is taken from the frame, so callers can pass just `r`."""
+    img_h, img_w = r.orig_shape
 
-
-def process_frame(r: Any, img_h: int) -> tuple[np.ndarray, list[str]]:
-    """
-    Pass 1: classify each detection as child/adult.
-    Pass 2: for each child, overlapping adults only - opposite hands - conf + distance.
-    Pass 3: skeleton, boxes/labels, neon wrist-wrist lines for LINKED children.
-
-    Returns (annotated_image, list_of_status_labels).
-    """
-    annotated = r.plot(
-        boxes=False,
-        labels=False,
-        conf=False,
-        kpt_radius=2,
-    )
+    annotated = r.plot(boxes=False, labels=False, conf=False, kpt_radius=2)
     if annotated is None or not isinstance(annotated, np.ndarray):
-        raise RuntimeError("result.plot() did not return a numpy image")
+        raise RuntimeError("result.plot() did not return an image")
+
+    # draw the danger zone so it is visible
+    poly = np.array(zone_polygon_px(img_w, img_h), dtype=np.int32)
+    cv2.polylines(annotated, [poly], isClosed=True, color=COLOR_ZONE, thickness=2)
 
     statuses: list[str] = []
     boxes = r.boxes
     if boxes is None or len(boxes) == 0:
         return annotated, statuses
 
-    xyxy_all = boxes.xyxy
-    if hasattr(xyxy_all, "cpu"):
-        xyxy_all = xyxy_all.cpu().numpy()
-    else:
-        xyxy_all = np.asarray(xyxy_all)
-
+    xyxy_all = boxes.xyxy.cpu().numpy() if hasattr(boxes.xyxy, "cpu") else np.asarray(boxes.xyxy)
     kpts_data = r.keypoints.data if r.keypoints is not None else None
 
-    people: list[PersonPass1] = []
-    child_indices: list[int] = []
-    adult_indices: list[int] = []
-
+    people: list[Person] = []
     for i in range(len(boxes)):
-        xyxy = xyxy_all[i]
-        h_px = bbox_height_px(xyxy)
-        is_ch = h_px < CHILD_HEIGHT_FRACTION * float(img_h)
+        b = xyxy_all[i]
+        fx, fy = foot_point(b)
+        in_zone = point_in_polygon(fx / img_w, fy / img_h, list(ZONE_POLYGON_NORM))
+        is_child = bbox_height_px(b) < CHILD_HEIGHT_FRACTION * float(img_h)
         xy, conf = (None, None)
         if kpts_data is not None:
-            xy, conf = _to_numpy_xy_conf(kpts_data, i)
-        people.append(PersonPass1(xyxy=xyxy, is_child=is_ch, xy=xy, conf=conf))
-        if is_ch:
-            child_indices.append(i)
+            xy, conf = to_numpy_xy_conf(kpts_data, i)
+        people.append(Person(xyxy=b, is_child=is_child, in_zone=in_zone, xy=xy, conf=conf))
+
+    adults = [p for p in people if not p.is_child]
+
+    for p in people:
+        x1, y1, x2, y2 = (int(round(v)) for v in p.xyxy)
+        line_seg = None
+
+        if not p.in_zone:
+            label, color = LABEL_SAFE, COLOR_SAFE          # outside the crossing
+        elif p.is_child:
+            adult = child_is_accompanied(p, adults, img_h)
+            if adult is not None:
+                label, color = LABEL_CHILD_LINKED, COLOR_CHILD_LINKED
+                line_seg = inner_wrist_points(p, adult)
+            else:
+                label, color = LABEL_CHILD, COLOR_CHILD
         else:
-            adult_indices.append(i)
+            label, color = classify_adult(p.xy, p.conf)
 
-    linked_children, line_segments = pass2_link_children(people, child_indices, adult_indices)
-
-    for i in range(len(people)):
-        p = people[i]
-        xyxy = p.xyxy
-        x1, y1, x2, y2 = [int(round(v)) for v in xyxy]
-        label, color = final_label_and_color(i, p, linked_children)
         statuses.append(label)
-        draw_labeled_box(annotated, x1, y1, x2, y2, label, color)
-
-    for seg in line_segments:
-        if seg is None:
-            continue
-        pa, pc = seg
-        cv2.line(annotated, pa, pc, LINE_NEON_MARKER, 2, cv2.LINE_AA)
+        cv2.rectangle(annotated, (x1, y1), (x2, y2), color, 2)
+        cv2.putText(annotated, label, (x1, max(0, y1 - 6)),
+                    cv2.FONT_HERSHEY_SIMPLEX, 0.5, color, 2, cv2.LINE_AA)
+        if line_seg is not None:
+            cv2.line(annotated, line_seg[0], line_seg[1], LINE_NEON_MARKER, 2, cv2.LINE_AA)
 
     return annotated, statuses
 
 
-def print_image_summary(filename: str, statuses: list[str]) -> None:
-    n = len(statuses)
-    print(f"  File: {filename}")
-    print(f"  People detected: {n}")
-    if n == 0:
-        print("  (no persons)")
-        return
-    for j, st in enumerate(statuses, start=1):
-        print(f"    Person {j}: {st}")
-    print()
-
-
 def main() -> None:
-    script_dir = os.path.dirname(os.path.abspath(__file__))
-    os.chdir(script_dir)
+    here = os.path.dirname(os.path.abspath(__file__))
+    in_dir = sys.argv[1] if len(sys.argv) > 1 else "mocks_img"
+    if not os.path.isabs(in_dir):
+        in_dir = os.path.join(here, in_dir)
+    out_dir = in_dir.rstrip("/\\") + "_output"
+    os.makedirs(out_dir, exist_ok=True)
 
-    input_folder = os.path.join(script_dir, "mocks_img")
-    output_folder = os.path.join(script_dir, "mocks_img_output")
-    model_path = os.path.join(script_dir, "yolov8n-pose.pt")
-
-    os.makedirs(output_folder, exist_ok=True)
-
-    if not os.path.isdir(input_folder):
-        print(f"Input folder not found: {input_folder}", file=sys.stderr)
+    if not os.path.isdir(in_dir):
+        print(f"Input folder not found: {in_dir}", file=sys.stderr)
         sys.exit(1)
 
-    try:
-        model = YOLO(model_path)
-    except Exception as e:
-        print(f"Failed to load model {model_path}: {e}", file=sys.stderr)
-        sys.exit(1)
-
-    print("YOLOv8-pose traffic-light + CHILD - LINKED (hand-holding)")
-    print(f"  Input:  {input_folder}")
-    print(f"  Output: {output_folder}")
-    print()
-
-    names = sorted(f for f in os.listdir(input_folder) if f.lower().endswith(IMAGE_EXTS))
+    model = YOLO(os.path.join(here, "yolov8n-pose.pt"))
+    names = sorted(f for f in os.listdir(in_dir) if f.lower().endswith(IMAGE_EXTS))
     if not names:
-        print("No image files found.")
+        print("No images found.")
         return
 
-    ok = 0
+    print(f"Input:  {in_dir}\nOutput: {out_dir}\n")
     for filename in names:
-        img_path = os.path.join(input_folder, filename)
-        try:
-            results = model.predict(source=img_path, verbose=False)
-        except Exception as e:
-            print(f"SKIP predict: {filename} - {e}", file=sys.stderr)
-            continue
-
-        for r in results:
-            try:
-                img_h, _ = r.orig_shape
-                im_array, statuses = process_frame(r, img_h)
-            except Exception as e:
-                print(f"SKIP process: {filename} - {e}", file=sys.stderr)
-                break
-
-            print_image_summary(filename, statuses)
-
-            out_path = os.path.join(output_folder, filename)
-            try:
-                if not cv2.imwrite(out_path, im_array):
-                    print(f"FAIL imwrite: {out_path}", file=sys.stderr)
-                    continue
-            except Exception as e:
-                print(f"FAIL imwrite: {out_path} - {e}", file=sys.stderr)
-                continue
-            ok += 1
-
-    print(f"Done. {ok}/{len(names)} image(s) saved to {output_folder}")
+        for r in model.predict(source=os.path.join(in_dir, filename), verbose=False):
+            annotated, statuses = process_frame(r)
+            print(f"{filename}: {statuses if statuses else 'no persons'}")
+            cv2.imwrite(os.path.join(out_dir, filename), annotated)
+    print(f"\nDone. Annotated images in: {out_dir}")
 
 
 if __name__ == "__main__":
