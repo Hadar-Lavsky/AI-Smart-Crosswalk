@@ -2,7 +2,6 @@ import { useState } from "react";
 import {
   PageHeader,
   LoadingScreen,
-  Button,
   ConfirmDialog,
 } from "../components/ui";
 import { useToast } from "../components/ui";
@@ -180,11 +179,6 @@ export function Alerts() {
         <PageHeader
           title="Alerts"
           description="Monitor and manage all detection alerts from crosswalk cameras."
-          actions={
-            <Button variant="primary" onClick={formDialog.openCreate}>
-              ➕ Add Alert
-            </Button>
-          }
         />
 
         {/* Stats */}
