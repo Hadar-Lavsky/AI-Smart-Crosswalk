@@ -21,10 +21,7 @@ import {
 // GET /api/alerts - Get all alerts (paginated)
 export async function getAllAlerts(req, res, next) {
   try {
-    const { dangerLevel, crosswalkId } = req.query;
-    const query = {};
-    if (dangerLevel) query.dangerLevel = dangerLevel;
-    if (crosswalkId) query.crosswalkId = crosswalkId;
+    const query = await buildAlertFilterQuery(req.query);
 
     const { parsedPage, parsedLimit, skip } = parsePagination(req.query);
 
@@ -205,4 +202,54 @@ async function findOrCreateCrosswalk(location, cameraId) {
   }
 
   return Crosswalk.findById(crosswalk._id).populate("cameraId").populate("ledId");
+}
+
+// --- Helper: build a MongoDB filter from Alerts-page query params ---
+// Supports dangerLevel, an exact crosswalkId, a free-text crosswalk location
+// search (city / street / number), and a timestamp date range. The "all"
+// sentinel sent by the FilterBar means "no danger-level filter".
+async function buildAlertFilterQuery(q) {
+  const { dangerLevel, crosswalkId, crosswalkSearch, startDate, endDate } = q;
+  const query = {};
+
+  if (dangerLevel && dangerLevel !== "all") {
+    query.dangerLevel = dangerLevel;
+  }
+
+  if (crosswalkId) {
+    query.crosswalkId = crosswalkId;
+  }
+
+  // Free-text search over the crosswalk location. Resolve the matching
+  // crosswalk ids first, then constrain alerts to that set ($in []) so an
+  // empty result correctly yields zero alerts.
+  if (crosswalkSearch && crosswalkSearch.trim()) {
+    const rx = new RegExp(escapeRegExp(crosswalkSearch.trim()), "i");
+    const matches = await Crosswalk.find({
+      $or: [
+        { "location.city": rx },
+        { "location.street": rx },
+        { "location.number": rx },
+      ],
+    }).select("_id");
+    query.crosswalkId = { $in: matches.map((c) => c._id) };
+  }
+
+  // Date range on the alert timestamp. The client sends absolute ISO instants
+  // (end-of-day already baked in by the date picker), so compare them directly.
+  const range = {};
+  const start = startDate ? new Date(startDate) : null;
+  const end = endDate ? new Date(endDate) : null;
+  if (start && !Number.isNaN(start.getTime())) range.$gte = start;
+  if (end && !Number.isNaN(end.getTime())) range.$lte = end;
+  if (range.$gte || range.$lte) {
+    query.timestamp = range;
+  }
+
+  return query;
+}
+
+// --- Helper: escape user input for safe literal use inside a RegExp ---
+function escapeRegExp(str) {
+  return str.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
