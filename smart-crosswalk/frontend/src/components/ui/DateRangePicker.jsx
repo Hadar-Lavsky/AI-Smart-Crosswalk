@@ -28,6 +28,7 @@ const PRESETS = [
     const now = new Date();
     const start = new Date(now.getFullYear(), now.getMonth() - 1, 1);
     const end = new Date(now.getFullYear(), now.getMonth(), 0);
+    end.setHours(23, 59, 59, 999);
     return { startDate: start.toISOString(), endDate: end.toISOString() };
   }},
   { label: 'All Time', getValue: () => ({ startDate: null, endDate: null }) }
@@ -70,8 +71,8 @@ export function DateRangePicker({ label, startDate, endDate, onChange, maxDate =
 
   const handleCustomApply = () => {
     onChange({
-      startDate: localStart ? new Date(localStart).toISOString() : null,
-      endDate: localEnd ? new Date(localEnd).toISOString() : null
+      startDate: localStart ? new Date(`${localStart}T00:00:00`).toISOString() : null,
+      endDate: localEnd ? new Date(`${localEnd}T23:59:59.999`).toISOString() : null
     });
   };
 
