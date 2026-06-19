@@ -8,7 +8,7 @@
 export const queryKeys = {
   alerts: {
     all: ["alerts"],
-    list: (page) => ["alerts", "list", page],
+    list: (page, filters = null) => ["alerts", "list", page, filters],
     stats: ["alerts-stats"],
   },
 
