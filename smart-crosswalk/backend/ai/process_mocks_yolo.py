@@ -87,6 +87,10 @@ ZONE_POLYGON_NORM = [
     (0.26, 0.853),  # front-left
 ]
 
+# When False, the danger zone is used for classification only and is NOT drawn
+# on the image (so the alert images shown in the app have no zone overlay).
+DRAW_ZONE = False
+
 IMAGE_EXTS = (".jpg", ".jpeg", ".png", ".webp", ".bmp")
 
 # BGR colors (unchanged)
@@ -213,12 +217,10 @@ def is_head_down(xy, conf) -> bool:
 def classify_adult(xy, conf):
     if xy is None or conf is None:
         return LABEL_SAFE, COLOR_SAFE
-    if is_head_down(xy, conf):                      # looking down at a phone
+    # Distraction = looking down at a phone (bowed head). The old "raised hand"
+    # signal was removed: it false-fired on a raised arm / bag strap.
+    if is_head_down(xy, conf):
         return LABEL_DISTRACTED, COLOR_DISTRACTED
-    if adult_keypoints_sufficient(conf):            # hand raised (phone-to-ear)
-        ratio = max_hand_lift_ratio(xy)
-        if ratio is not None and ratio > HAND_LIFT_DISTRACTED_THRESHOLD:
-            return LABEL_DISTRACTED, COLOR_DISTRACTED
     return LABEL_SAFE, COLOR_SAFE
 
 
@@ -262,9 +264,10 @@ def process_frame(r: Any, *_ignored):
     if annotated is None or not isinstance(annotated, np.ndarray):
         raise RuntimeError("result.plot() did not return an image")
 
-    # draw the danger zone so it is visible
-    poly = np.array(zone_polygon_px(img_w, img_h), dtype=np.int32)
-    cv2.polylines(annotated, [poly], isClosed=True, color=COLOR_ZONE, thickness=2)
+    # draw the danger zone (only when DRAW_ZONE is on)
+    if DRAW_ZONE:
+        poly = np.array(zone_polygon_px(img_w, img_h), dtype=np.int32)
+        cv2.polylines(annotated, [poly], isClosed=True, color=COLOR_ZONE, thickness=2)
 
     statuses: list[str] = []
     boxes = r.boxes
