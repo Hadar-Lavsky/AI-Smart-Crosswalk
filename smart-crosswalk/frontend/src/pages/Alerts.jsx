@@ -12,16 +12,34 @@ import { AlertDialog, FilterBar, useAlerts } from "../features/alerts";
 import { useCrosswalks } from "../features/crosswalks";
 import { useDialog } from "../hooks";
 
+const DEFAULT_FILTERS = {
+  dangerLevel: "all",
+  crosswalkSearch: "",
+  dateRange: { startDate: null, endDate: null },
+};
+
 /**
  * Alerts — CRUD list page for detection alerts.
  *
- * Shows a stat-annotated list of all alerts from all crosswalks.
- * Includes a collapsible FilterBar for danger-level, crosswalk-search, and
- * date-range filtering.
+ * Shows a stat-annotated list of all alerts from all crosswalks. The
+ * collapsible FilterBar (danger level, crosswalk search, date range) is applied
+ * SERVER-SIDE, so filtering and pagination stay consistent across the entire
+ * dataset rather than only the rows already loaded in the browser.
  *
  * Route: `/alerts`
  */
 export function Alerts() {
+  // ─────────────────────────────────────────────────────────────
+  // Filter State (applied server-side via useAlerts)
+  // ─────────────────────────────────────────────────────────────
+
+  const [filters, setFilters] = useState(DEFAULT_FILTERS);
+
+  const filtersActive =
+    filters.dangerLevel !== "all" ||
+    (filters.crosswalkSearch && filters.crosswalkSearch.trim() !== "") ||
+    Boolean(filters.dateRange.startDate || filters.dateRange.endDate);
+
   // ─────────────────────────────────────────────────────────────
   // Data Fetching
   // ─────────────────────────────────────────────────────────────
@@ -37,20 +55,10 @@ export function Alerts() {
     updateAlert,
     deleteAlert,
     createAlert,
-  } = useAlerts();
+  } = useAlerts({ filters });
   const { crosswalks } = useCrosswalks();
 
   const { addToast } = useToast();
-
-  // ─────────────────────────────────────────────────────────────
-  // Filter State
-  // ─────────────────────────────────────────────────────────────
-
-  const [filters, setFilters] = useState({
-    dangerLevel: "all",
-    crosswalkSearch: "",
-    dateRange: { startDate: null, endDate: null },
-  });
 
   // ─────────────────────────────────────────────────────────────
   // Dialog State
@@ -92,73 +100,15 @@ export function Alerts() {
     }
   };
 
-  // ─────────────────────────────────────────────────────────────
-  // Filtering Logic
-  // ─────────────────────────────────────────────────────────────
-
-  const filterAlert = (alert) => {
-    if (
-      filters.dangerLevel !== "all" &&
-      alert.dangerLevel !== filters.dangerLevel
-    )
-      return false;
-    if (filters.crosswalkSearch) {
-      const s = filters.crosswalkSearch.toLowerCase();
-      const loc = alert.crosswalkId?.location;
-      if (
-        !["city", "street", "number"].some((k) =>
-          loc?.[k]?.toLowerCase().includes(s),
-        )
-      )
-        return false;
-    }
-    if (filters.dateRange.startDate || filters.dateRange.endDate) {
-      const d = new Date(alert.timestamp);
-      if (
-        filters.dateRange.startDate &&
-        d < new Date(filters.dateRange.startDate)
-      )
-        return false;
-      if (filters.dateRange.endDate) {
-        const end = new Date(filters.dateRange.endDate);
-        end.setHours(23, 59, 59, 999);
-        if (d > end) return false;
-      }
-    }
-    return true;
-  };
-
-  const filteredAlerts = alerts.filter(filterAlert);
-
-  // ─────────────────────────────────────────────────────────────
+  // ────────────────────────────────────────────────────────────
   // Stats Configuration
-  // ─────────────────────────────────────────────────────────────
+  // ────────────────────────────────────────────────────────────
 
   const alertStats = [
-    {
-      title: "Total Alerts",
-      value: stats.total ?? 0,
-      icon: "📋",
-      color: "primary",
-    },
-    {
-      title: "High Danger",
-      value: stats.high ?? 0,
-      icon: "🚨",
-      color: "danger",
-    },
-    {
-      title: "Medium Danger",
-      value: stats.medium ?? 0,
-      icon: "🚨",
-      color: "warning",
-    },
-    {
-      title: "Low Danger",
-      value: stats.low ?? 0,
-      icon: "🚨",
-      color: "success",
-    },
+    { title: "Total Alerts", value: stats.total ?? 0, icon: "📋", color: "primary" },
+    { title: "High Danger", value: stats.high ?? 0, icon: "🚨", color: "danger" },
+    { title: "Medium Danger", value: stats.medium ?? 0, icon: "🚨", color: "warning" },
+    { title: "Low Danger", value: stats.low ?? 0, icon: "🚨", color: "success" },
   ];
 
   if (loading) return <LoadingScreen message="Loading alerts..." />;
@@ -188,30 +138,26 @@ export function Alerts() {
         <FilterBar
           filters={filters}
           onFilterChange={setFilters}
-          onClear={() =>
-            setFilters({
-              dangerLevel: "all",
-              crosswalkSearch: "",
-              dateRange: { startDate: null, endDate: null },
-            })
-          }
+          onClear={() => setFilters(DEFAULT_FILTERS)}
           crosswalks={crosswalks}
         />
 
         {/* List */}
         <GenericList
           type="alert"
-          data={filteredAlerts}
+          data={alerts}
           onEdit={formDialog.openWith}
           onDelete={deleteDialog.openWith}
           hasMore={hasMore}
           onLoadMore={loadMore}
           loadingMore={loadingMore}
-          emptyIcon={alerts.length === 0 ? '🚨' : '🔍'}
-          emptyTitle={alerts.length === 0 ? 'No Alerts' : 'No Matching Alerts'}
-          emptyMessage={alerts.length === 0
-            ? 'No detection alerts have been recorded yet.'
-            : 'Try adjusting your filters to see more results.'}
+          emptyIcon={filtersActive ? "🔍" : "🚨"}
+          emptyTitle={filtersActive ? "No Matching Alerts" : "No Alerts"}
+          emptyMessage={
+            filtersActive
+              ? "Try adjusting your filters to see more results."
+              : "No detection alerts have been recorded yet."
+          }
         />
       </div>
 
