@@ -53,30 +53,6 @@ export function SocketBridge() {
         );
       }
 
-      // Update page-1 cache immediately so the UI feels real-time.
-      queryClient.setQueryData(queryKeys.alerts.list(1), (oldData) => {
-        const data = (oldData || {});
-        if (!data?.data || !Array.isArray(data?.data)) return oldData;
-
-        const exists = data.data.some((item) => item?._id === alert?._id);
-        if (exists) return oldData;
-
-        const nextItems = [alert, ...data.data];
-        const pageLimit = data.pagination?.limit;
-        const cappedItems =
-          typeof pageLimit === "number" && pageLimit > 0
-            ? nextItems.slice(0, pageLimit)
-            : nextItems;
-
-        return {
-          ...data,
-          data: cappedItems,
-          pagination: data.pagination
-            ? { ...data.pagination, total: (data.pagination.total || 0) + 1 }
-            : data.pagination,
-        };
-      });
-
       // Update aggregate counters instantly when stats are already cached.
       queryClient.setQueryData(queryKeys.alerts.stats, (oldStats) => {
         const stats = (oldStats || {});
@@ -91,10 +67,11 @@ export function SocketBridge() {
         };
       });
 
-      // Revalidate in background to keep all screens consistent with server state.
+      // Revalidate the visible alerts list so the new alert shows immediately
+      // (server-side filters decide whether it belongs in the current view).
       queryClient.invalidateQueries({
         queryKey: queryKeys.alerts.all,
-        refetchType: "inactive",
+        refetchType: "active",
       });
       queryClient.invalidateQueries({
         queryKey: queryKeys.alerts.stats,
